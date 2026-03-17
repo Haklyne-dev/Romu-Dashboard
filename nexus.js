@@ -120,10 +120,6 @@ window.addEventListener('load', function() {
 
         getAllEvents().then(function(data) {
             //sort events by date
-            data.sort(function(a, b) {
-                return new Date(b.startDate) - new Date(a.startDate);
-            });
-
             for (evt in data) {
                 var event = data[evt];
                 $('#event-list').append('<a href="' + event.key + '" class="event-link"><div class="event-card"><h2>' + event.name + '</h2><p class="event-details">' + event.key + '</p></div></a>');
