@@ -122,7 +122,7 @@ window.addEventListener('load', function() {
             //sort events by date
             for (evt in data) {
                 var event = data[evt];
-                $('#event-list').append('<a href="' + event.key + '" class="event-link"><div class="event-card"><h2>' + event.name + '</h2><p class="event-details">' + event.key + '</p></div></a>');
+                $('#event-list').append('<a href="' + evt + '" class="event-link"><div class="event-card"><h3>' + event.name + '</h3></div></a>');
             }
         });
     }
