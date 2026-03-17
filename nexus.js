@@ -56,12 +56,12 @@ function getSelectedEvent() {
 
 function URLHasTeam() {
     var urlData = parseURL();
-    return urlData.teamNumber !== undefined;
+    return urlData.teamNumber !== undefined && urlData.teamNumber !== '';
 }
 
 function URLHasEvent() {
     var urlData = parseURL();
-    return urlData.eventCode !== undefined;
+    return urlData.eventCode !== undefined && urlData.eventCode !== '';
 }
 
 function getAllEvents() {
