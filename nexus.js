@@ -17,7 +17,7 @@ let state = {
         team: null,
         event: null,
         matches: [],
-        status: null
+        record: null,
     },
     nexus: {
         event: null,
@@ -28,7 +28,6 @@ let state = {
     },
     statbotics: {
         event: null,
-        teamEvent: null,
         matches: [],
         epaHistory: []
     },
@@ -109,17 +108,25 @@ const URLHasEvent = () => { const d = parseURL(); return !!d.eventCode; };
 
 // --- UI Components & Utilities ---
 function smoothUpdate(selector, newHtml, onHalfway) {
-    const $el = $(selector);
-    if ($el.html() === newHtml) return;
+    return new Promise((resolve) => {
+        const $el = $(selector);
+        if ($el.html() === newHtml) {
+            resolve();
+            return;
+        }
 
-    $el.addClass('transitioning fade-out-up');
+        $el.addClass('transitioning fade-out-up');
 
-    setTimeout(() => {
-        if (onHalfway) onHalfway();
-        $el.html(newHtml).removeClass('fade-out-up').addClass('fade-in-up');
+        setTimeout(() => {
+            if (onHalfway) onHalfway();
+            $el.html(newHtml).removeClass('fade-out-up').addClass('fade-in-up');
 
-        setTimeout(() => $el.removeClass('transitioning fade-in-up'), 400);
-    }, 300);
+            setTimeout(() => {
+                $el.removeClass('transitioning fade-in-up');
+                resolve();
+            }, 400);
+        }, 300);
+    });
 }
 
 const createCard = (title, details, link) => `
@@ -186,24 +193,32 @@ const api = {
 
 // --- Core Data & UI Logic ---
 async function updateEventInfo(eventCode, teamNumber) {
-    api.fetchNexus(`event/${eventCode}`).then(eventData => {
+    try {
+        const eventData = await api.fetchNexus(`event/${eventCode}`);
         state.nexus.event = eventData;
-        return api.fetchTBA(`team/frc${teamNumber}/event/${eventCode}`);
-    }).then(teamEventData => {
-        state.tba.event = teamEventData;
-        return api.fetchTBA(`team/frc${teamNumber}/status`);
-    }).then(teamStatus => {
-        state.tba.status = teamStatus;
-        return api.fetchStatbotics(`team_event/${teamNumber}/${eventCode}`);
-    }).then(statboticsData => {
-        state.statbotics.teamEvent = statboticsData;
+        
+        await smoothUpdate('#team-loading-status', 'Loading TBA Data...');
+        
+        const teamMatchData = await api.fetchTBA(`team/frc${teamNumber}/event/${eventCode}/matches`);
+        state.tba.event = teamMatchData;
+        state.tba.record = {
+            wins: teamMatchData.filter(m => m.score_breakdown && m.score_breakdown.alliances.red.teams.includes(`frc${teamNumber}`) && m.winning_alliance === 'red').length +
+                  teamMatchData.filter(m => m.score_breakdown && m.score_breakdown.alliances.blue.teams.includes(`frc${teamNumber}`) && m.winning_alliance === 'blue').length,
+            losses: teamMatchData.filter(m => m.score_breakdown && m.score_breakdown.alliances.red.teams.includes(`frc${teamNumber}`) && m.winning_alliance === 'blue').length +
+                    teamMatchData.filter(m => m.score_breakdown && m.score_breakdown.alliances.blue.teams.includes(`frc${teamNumber}`) && m.winning_alliance === 'red').length,
+            ties: teamMatchData.filter(m => m.score_breakdown && (m.winning_alliance === '' || m.winning_alliance === null)).length
+        };
+
+        await smoothUpdate('#team-loading-status', 'Loading Statbotics Data...');
+        
+        const statboticsData = await api.fetchStatbotics(`event/${eventCode}`);
+        state.statbotics.event = statboticsData;
         state.lastUpdate = new Date();
         displayEventInfo();
-    }).catch(err => {
+    } catch (err) {
         console.error('Error updating event info:', err);
-        smoothUpdate('#team-loading-status', `<span class="error">Error loading data. Check API keys and console for details.</span>`);
+        await smoothUpdate('#team-loading-status', `<span class="error">Error loading data. Check API keys and console for details.</span>`);
     }
-    );
 }
 
 function displayEventInfo() {
@@ -211,8 +226,9 @@ function displayEventInfo() {
 }
 
 // --- Page Renderers ---
-function renderEventSelection() {
-    api.fetchNexus('events').then(data => {
+async function renderEventSelection() {
+    try {
+        const data = await api.fetchNexus('events');
         const currentYear = new Date().getFullYear();
         const events = Object.entries(data)
             .map(([code, info]) => ({ code, name: info.name, year: parseInt(code.substring(0, 4)) }))
@@ -220,55 +236,53 @@ function renderEventSelection() {
 
         const ui = `<h1>Select an Event</h1>${createSearchUI('event-search', 'Search events...')}<div class="grid-list" id="event-list"></div>`;
 
-        smoothUpdate('#content', ui, () => $('#content').removeClass('vertically-centered'));
+        await smoothUpdate('#content', ui, () => $('#content').removeClass('vertically-centered'));
 
-        setTimeout(() => {
-            const render = (filter = '') => {
-                const items = events.filter(e => e.name.toLowerCase().includes(filter.toLowerCase()) || e.code.includes(filter.toLowerCase()));
-                const baseUrl = getBaseURL();
-                $('#event-list').html(items.map(e => createCard(e.name, e.code, `${baseUrl}${e.code}`)).join(''));
-            };
-            render();
-            $('#event-search').on('input', function () { render($(this).val()); });
-        }, 400);
-    }).catch(err => {
-        smoothUpdate('#content', `<div class="center-content error"><h1>Error loading events. Check API keys.</h1></div>`, () => $('#content').addClass('vertically-centered'));
-    });
+        const render = (filter = '') => {
+            const items = events.filter(e => e.name.toLowerCase().includes(filter.toLowerCase()) || e.code.includes(filter.toLowerCase()));
+            const baseUrl = getBaseURL();
+            $('#event-list').html(items.map(e => createCard(e.name, e.code, `${baseUrl}${e.code}`)).join(''));
+        };
+        render();
+        $('#event-search').on('input', function () { render($(this).val()); });
+
+    } catch (err) {
+        await smoothUpdate('#content', `<div class="center-content error"><h1>Error loading events. Check API keys.</h1></div>`, () => $('#content').addClass('vertically-centered'));
+    }
 }
 
-function renderTeamSelection(eventCode) {
-    api.fetchTBA(`event/${eventCode}/teams`).then(data => {
+async function renderTeamSelection(eventCode) {
+    try {
+        const data = await api.fetchTBA(`event/${eventCode}/teams`);
         // Collect and sort teams from TBA data (array of team objects)
         const teams = data.sort((a, b) => a.team_number - b.team_number);
 
         const ui = `<h1>Select a Team</h1>${createSearchUI('team-search', 'Search teams by number or name...')}<div class="grid-list" id="team-list"></div>`;
 
-        smoothUpdate('#content', ui, () => $('#content').removeClass('vertically-centered'));
+        await smoothUpdate('#content', ui, () => $('#content').removeClass('vertically-centered'));
 
-        setTimeout(() => {
-            const render = (filter = '') => {
-                const query = filter.toLowerCase();
-                const items = teams.filter(t =>
-                    t.team_number.toString().includes(query) ||
-                    (t.nickname && t.nickname.toLowerCase().includes(query))
-                );
+        const render = (filter = '') => {
+            const query = filter.toLowerCase();
+            const items = teams.filter(t =>
+                t.team_number.toString().includes(query) ||
+                (t.nickname && t.nickname.toLowerCase().includes(query))
+            );
 
-                const baseUrl = getBaseURL();
-                $('#team-list').html(items.map(t =>
-                    createCard(`Team ${t.team_number}`, t.nickname || '', `${baseUrl}${eventCode}/${t.team_number}`)
-                ).join(''));
-            };
+            const baseUrl = getBaseURL();
+            $('#team-list').html(items.map(t =>
+                createCard(`Team ${t.team_number}`, t.nickname || '', `${baseUrl}${eventCode}/${t.team_number}`)
+            ).join(''));
+        };
 
-            render();
-            $('#team-search').on('input', function () { render($(this).val()); });
-        }, 400);
-    }).catch(err => {
+        render();
+        $('#team-search').on('input', function () { render($(this).val()); });
+    } catch (err) {
         console.error('TBA API Error:', err);
         const errorMsg = err === 'Missing TBA Key'
             ? 'Please set your TBA API key in settings to view teams.'
             : 'Error loading teams from The Blue Alliance.';
-        smoothUpdate('#content', `<div class="center-content error"><h1>${errorMsg}</h1></div>`, () => $('#content').addClass('vertically-centered'));
-    });
+        await smoothUpdate('#content', `<div class="center-content error"><h1>${errorMsg}</h1></div>`, () => $('#content').addClass('vertically-centered'));
+    }
 }
 
 function checkEventExists(eventCode) {
@@ -290,22 +304,9 @@ function checkTeamAtEvent(eventCode, teamNumber) {
 }
 
 // --- Main Init ---
-$(() => {
+$(async () => {
     // Settings Logic
-    $('#settings-btn').on('click', () => {
-        $('#settings-menu').toggleClass('hidden');
-        $('#nexus-key-input').val(storage.getNexusKey() || '');
-        $('#tba-key-input').val(storage.getTBAKey() || '');
-        $('#debug-mode-toggle').prop('checked', storage.isDebug());
-    });
-
-    $('#save-settings-btn').on('click', () => {
-        storage.set('nexusKey', $('#nexus-key-input').val().trim());
-        storage.set('tbaKey', $('#tba-key-input').val().trim());
-        storage.setDebug($('#debug-mode-toggle').is(':checked'));
-        location.reload();
-    });
-
+    // ...existing code...
     if (!storage.getNexusKey() && !storage.isDebug()) $('#settings-menu').removeClass('hidden');
 
     // Routing
@@ -314,39 +315,33 @@ $(() => {
     if (storage.isDebug()) {
         const mockEvent = MOCK_DATA.nexus.eventKey;
         const mockTeam = MOCK_DATA.tba.team.team_number;
-        smoothUpdate('#content', `<h1>Team ${mockTeam} Dashboard (Debug)</h1><p id="team-loading-status">Loading Debug Data...</p>`, () => $('#content').removeClass('vertically-centered'));
-        setTimeout(() => {
-            updateEventInfo(mockEvent, mockTeam);
-        }, 500);
+        await smoothUpdate('#content', `<h1>Team ${mockTeam} Dashboard (Debug)</h1><p id="team-loading-status">Loading Debug Data...</p>`, () => $('#content').removeClass('vertically-centered'));
+        updateEventInfo(mockEvent, mockTeam);
         return;
     }
 
     if (teamNumber) {
-        smoothUpdate('#content', `<h1>Team ${teamNumber} Dashboard</h1><p id="team-loading-status">Checking Team Status...</p>`, () => $('#content').removeClass('vertically-centered'));
+        await smoothUpdate('#content', `<h1>Team ${teamNumber} Dashboard</h1><p id="team-loading-status">Checking Team Status...</p>`, () => $('#content').removeClass('vertically-centered'));
 
-        checkTeamAtEvent(eventCode, teamNumber).then(exists => {
-            if (exists) {
-                setTimeout(() => {
-                    smoothUpdate('#team-loading-status', 'Loading event information...');
-                    updateEventInfo(eventCode, teamNumber);
-                }, 800);
-            } else {
-                setTimeout(() => {
-                    smoothUpdate('#team-loading-status', `<span class="error">Team ${teamNumber} is not registered for event ${eventCode}.</span>`);
-                }, 800);
-            }
-        });
+        const exists = await checkTeamAtEvent(eventCode, teamNumber);
+        if (exists) {
+            await smoothUpdate('#team-loading-status', 'Loading Nexus Data...');
+            updateEventInfo(eventCode, teamNumber);
+        } else {
+            await smoothUpdate('#team-loading-status', `<span class="error">Team ${teamNumber} is not registered for event ${eventCode}.</span>`);
+        }
     } else if (eventCode) {
-        checkEventExists(eventCode).then(exists => {
+        try {
+            const exists = await checkEventExists(eventCode);
             if (exists) {
                 renderTeamSelection(eventCode);
             } else {
                 renderEventSelection();
             }
-        }).catch(err => {
+        } catch (err) {
             console.error('Error checking event existence:', err);
-            smoothUpdate('#content', `<div class="center-content error"><h1>Error loading event data. Check API keys.</h1></div>`, () => $('#content').addClass('vertically-centered'));
-        });
+            await smoothUpdate('#content', `<div class="center-content error"><h1>Error loading event data. Check API keys.</h1></div>`, () => $('#content').addClass('vertically-centered'));
+        }
     } else {
         renderEventSelection();
     }
