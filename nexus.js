@@ -192,7 +192,71 @@ const WIDGET_REGISTRY = {
 };
 // Add any new widgets to this object ^^^
 
-// --- API Wrappers ---
+// --- Layout Helpers ---
+let DEFAULT_LAYOUT_CONFIG = []; // Will be loaded from JSON
+
+function convertLayoutPercentToPixels(layoutConfig) {
+    const W = Math.max($(window).width(), 1024);
+    // Account for header
+    const headerHeight = $('#main-header').outerHeight(true) || 60;
+    const gap = 20;
+
+    // Viewport height (minus header and some padding) used as the "100%" basis
+    // Reduced height as per user request to prevent snapping out of bounds
+    const H = Math.max($(window).height() - headerHeight - gap * 4, 600);
+    
+    const availW = W - gap;
+
+    return layoutConfig.map(item => {
+        // Percentage (0-100)
+        const xPct = (item.x || 0) / 100;
+        const yPct = (item.y || 0) / 100;
+        const wPct = (item.w || 100) / 100;
+        const hPct = (item.h || 100) / 100;
+
+        // Calculate Pixel Values
+        const pxX = gap + (xPct * availW);
+        const pxY = gap + (yPct * H);
+        const pxW = (wPct * availW) - gap;
+        const pxH = (hPct * H) - gap;
+
+        const def = WIDGET_REGISTRY[item.id];
+        return {
+             id: item.id,
+             title: def ? def.title : item.id,
+             pos: {
+                 x: Math.round(pxX),
+                 y: Math.round(pxY),
+                 w: Math.round(Math.max(100, pxW)),
+                 h: Math.round(Math.max(50, pxH))
+             }
+        };
+    });
+}
+
+function convertLayoutPixelsToPercent(currentLayout) {
+    const W = Math.max($(window).width(), 1024);
+    const headerHeight = $('#main-header').outerHeight(true) || 60;
+    const gap = 20;
+    const H = Math.max($(window).height() - headerHeight - gap * 4, 600);
+    const availW = W - gap;
+
+    return currentLayout.map(w => {
+        const xPct = ((w.pos.x - gap) / availW) * 100;
+        const yPct = ((w.pos.y - gap) / H) * 100;
+        const wPct = ((w.pos.w + gap) / availW) * 100;
+        const hPct = ((w.pos.h + gap) / H) * 100;
+
+        return {
+            id: w.id,
+            x: parseFloat(xPct.toFixed(2)),
+            y: parseFloat(yPct.toFixed(2)),
+            w: parseFloat(wPct.toFixed(2)),
+            h: parseFloat(hPct.toFixed(2))
+        };
+    });
+}
+
 const api = {
     fetchNexus: async (endpoint) => {
         const key = storage.getNexusKey();
@@ -352,73 +416,13 @@ function createWidget(widget, isEditing = false) {
 }
 
 function generateDefaultLayout() {
-    const W = Math.max($(window).width(), 1024); // Assume at least tablet size
-    
-    // Account for header height to ensure widgets fit within the visible area
-    const headerHeight = $('#main-header').outerHeight() || 60;
-    const gap = 20;
-    
-    // User requested "one grid space shorter" -> subtract extra gap
-    const H = Math.max($(window).height() - headerHeight - gap * 2, 600);
-    
-    // Column 1 (Left): Next Matches (Full Height)
-    const c1X = gap;
-    const c1W = Math.max(300, Math.floor((W - 3*gap) * 0.25));
-    const c1H = H;
-
-    // Column 2 (Right): The rest
-    const c2X = c1X + c1W + gap;
-    const c2W = W - c2X - gap;
-
-    // Right Column Row Layout
-    // 1. Team Info (Top, Taller)
-    const row1H = Math.floor(H * 0.45); 
-
-    // 2. Middle Row: Next Match Single & Part Requests
-    const row2Y = gap + row1H + gap;
-    const row2H = Math.floor(H * 0.25);
-    const splitW = Math.floor((c2W - gap) / 2);
-
-    // 3. Bottom Row: Announcements (Remaining)
-    const row3Y = row2Y + row2H + gap;
-    const row3H = Math.max(100, H - row3Y);
-
-    const layout = [
-        // Left Column
-        {
-            id: 'next-matches',
-            pos: { x: c1X, y: gap, w: c1W, h: c1H }
-        },
-        // Right Column - Top
-        {
-            id: 'team-info',
-            pos: { x: c2X, y: gap, w: c2W, h: row1H }
-        },
-        // Right Column - Middle Left
-        {
-            id: 'next-match-single',
-            pos: { x: c2X, y: row2Y, w: splitW, h: row2H }
-        },
-        // Right Column - Middle Right
-        {
-            id: 'part-requests',
-            pos: { x: c2X + splitW + gap, y: row2Y, w: splitW, h: row2H }
-        },
-        // Right Column - Bottom
-        {
-            id: 'announcements',
-            pos: { x: c2X, y: row3Y, w: c2W, h: row3H }
-        }
-    ];
-
-    return layout.map(w => {
-        const def = WIDGET_REGISTRY[w.id];
-        return {
-             id: w.id,
-             title: def ? def.title : w.id,
-             pos: w.pos
-        };
-    });
+    // If config hasn't loaded yet, try to load it synchronously or warn?
+    // Since this is usually called after init, we assume DEFAULT_LAYOUT_CONFIG is populated.
+    if (!DEFAULT_LAYOUT_CONFIG || DEFAULT_LAYOUT_CONFIG.length === 0) {
+        console.warn("Default layout config not loaded yet, returning empty.");
+        return [];
+    }
+    return convertLayoutPercentToPixels(DEFAULT_LAYOUT_CONFIG);
 }
 
 
@@ -510,8 +514,10 @@ function generateDashboardHTML() {
         </div>
         
         <!-- Controls Bar -->
-        <div id="dashboard-controls" class="add-widget-container" style="${isEditing ? 'display:flex;' : 'display:none;'}">
+        <div id="dashboard-controls" class="add-widget-container" style="${isEditing ? 'display:flex; gap: 10px;' : 'display:none;'}">
             <button id="toggle-add-widget" class="add-widget-btn">+ Add Widget</button>
+            <button id="import-layout-btn" class="add-widget-btn" title="Import Layout from JSON">Import</button>
+            <button id="export-layout-btn" class="add-widget-btn" title="Export Layout to Scalable JSON">Export</button>
         </div>
         
         <!-- Dashboard Canvas -->
@@ -782,6 +788,19 @@ function checkTeamAtEvent(eventCode, teamNumber) {
 
 // --- Main Init ---
 $(async () => {
+    // Load Default Layout Config First
+    try {
+        // Construct correct path for JSON based on app root
+        const dashboardUrl = getBaseURL(); // e.g. "/Repo/dashboard/" or "/dashboard/"
+        const rootUrl = dashboardUrl.replace('dashboard/', ''); // e.g. "/Repo/" or "/"
+        const jsonPath = rootUrl + 'defaultLayout.json';
+
+        DEFAULT_LAYOUT_CONFIG = await $.getJSON(jsonPath);
+    } catch (e) {
+        console.error("Failed to load defaultLayout.json", e);
+        // Fallback hardcoded if file fails? Not requested but good practice.
+    }
+
     // Settings Logic
     $('#settings-btn').on('click', () => $('#settings-menu').toggleClass('hidden'));
     $('#close-settings-btn').on('click', () => $('#settings-menu').addClass('hidden'));
@@ -801,6 +820,92 @@ $(async () => {
         window.location.reload();
     });
 
+    // Handle "Import Layout" button (Delegated)
+    $(document).off('click', '#import-layout-btn').on('click', '#import-layout-btn', async function() {
+        // Read JSON from clipboard if possible, or prompt
+        let jsonStr = '';
+        try {
+            jsonStr = await navigator.clipboard.readText();
+            // Basic check if it looks like JSON array
+            if (!jsonStr || !jsonStr.trim().startsWith('[')) {
+                 throw new Error("Clipboard content doesn't look like a layout array");
+            }
+        } catch (e) {
+            jsonStr = prompt("Paste your layout JSON here:");
+        }
+
+        if (!jsonStr) return;
+
+        try {
+            const rawLayout = JSON.parse(jsonStr);
+            if (!Array.isArray(rawLayout)) {
+                alert("Invalid layout format: Root must be an array.");
+                return;
+            }
+            
+            // Validate and detect format
+            // If the layout has 'pos' {x,y,w,h} it is likely the old PIXEL format
+            // If the layout has direct {x,y,w,h} it is likely the new PERCENTAGE format
+            
+            let finalLayout = [];
+            
+            // Check for new percentage format first (flat x, y, w, h properties)
+            const isPercentFormat = rawLayout.every(w => 
+                (typeof w.x === 'number' && typeof w.w === 'number') || 
+                (w.pos === undefined) // Ensure it's not the old format which nests inside 'pos'
+            );
+            
+            // Check for old pixel format (nested inside 'pos' object)
+            const isPixelFormat = rawLayout.every(w => w.pos && typeof w.pos.x === 'number');
+
+            if (isPercentFormat) {
+                // Determine if values are percentages (0-100) or possibly pixels
+                // Our internal standard says percentage is stored as 0-100
+                finalLayout = convertLayoutPercentToPixels(rawLayout);
+            } else if (isPixelFormat) {
+                // If the user pasted old pixel data, we have to use it as is or try to convert.
+                // Since we don't know original screen size, we use as pixels.
+                console.warn("Imported layout uses raw pixels. Scaling may not be optimal.");
+                finalLayout = rawLayout;
+            } else {
+                 alert("Invalid layout format: Could not detect pixel (pos object) or percentage format.");
+                 return;
+            }
+
+            if (confirm("This will overwrite your current layout. Continue?")) {
+                storage.setLayout(finalLayout);
+                window.location.reload();
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Failed to parse JSON: " + err.message);
+        }
+    });
+
+    // Handle "Export Layout" button (Delegated because it is dynamic)
+    $(document).off('click', '#export-layout-btn').on('click', '#export-layout-btn', async function() {
+        // Updated Export: Convert current PIXEL layout to PERCENTAGE based on current window size
+        // This ensures exports work across different screen sizes
+        const layout = storage.getLayout(); 
+        if (!layout) {
+            alert("No layout to export!");
+            return;
+        }
+
+        const percentageLayout = convertLayoutPixelsToPercent(layout);
+        
+        // Pretty print JSON
+        const jsonStr = JSON.stringify(percentageLayout, null, 2);
+        
+        try {
+            await navigator.clipboard.writeText(jsonStr);
+            alert("Layout JSON (scalable) copied to clipboard!");
+        } catch (err) {
+            console.error('Failed to copy layout:', err);
+            prompt("Could not copy automatically. Please copy manually:", jsonStr);
+        }
+    });
+
     // Make sure we always delegate this check
     // Fix: We must unbind first to avoid duplicate listeners if init re-runs, and use delegation
     // because #edit-layout-btn IS recreated by generateDashboardHTML
@@ -814,6 +919,14 @@ $(async () => {
             $('#dashboard').removeClass('editing');
             $('#add-widget-menu').addClass('hidden');
             $('#dashboard-controls').hide(); // Hide the "Add Widget" container
+            
+            // Explicitly unset interactions to prevent moving
+            try {
+                interact('.widget').unset();
+            } catch (e) {
+                console.warn("Interact cleanup warning:", e);
+            }
+
             saveCurrentLayout();
             // Re-render to reflect changes or load defaults if empty
             displayEventInfo(false);
@@ -822,13 +935,6 @@ $(async () => {
             $this.addClass('editing').text('Finish Editing');
             $('#dashboard').addClass('editing');
             $('#dashboard-controls').show().css('display', 'flex'); // Show the "Add Widget" container
-        }
-        
-        if (isEditing) {
-            if (interact.isSet('.widget')) {
-                interact('.widget').unset();
-            }
-        } else {
             initInteractions();
         }
     });
