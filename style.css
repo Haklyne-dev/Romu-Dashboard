@@ -547,3 +547,8 @@ body {
 .r1 { grid-row-start: 1; } .r2 { grid-row-start: 2; } .r3 { grid-row-start: 3; }
 .r4 { grid-row-start: 4; } .r5 { grid-row-start: 5; } .r6 { grid-row-start: 6; }
 .r7 { grid-row-start: 7; } .r8 { grid-row-start: 8; } .r9 { grid-row-start: 9; }
+
+.undecorated {
+  text-decoration: none;
+  color: inherit;
+}

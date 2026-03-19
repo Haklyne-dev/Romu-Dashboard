@@ -968,14 +968,39 @@ $(async () => {
     const { eventCode, teamNumber } = parseURL();
 
     if (teamNumber) {
-        await smoothUpdate('#content', `<h1>Team ${teamNumber} Dashboard</h1><p id="team-loading-status">Checking Team Status...</p>`, () => $('#content').removeClass('vertically-centered'));
+        await smoothUpdate('#content', `<h1>Initializing...</h1><p id="team-loading-status">Verifying Event Code...</p>`, () => $('#content').addClass('vertically-centered'));
 
-        const exists = await checkTeamAtEvent(eventCode, teamNumber);
-        if (exists) {
+        // Check if event exists in Nexus first
+        const eventExists = await checkEventExists(eventCode);
+        
+        if (!eventExists) {
+            // Determine if it's likely an API key issue or just missing event
+            const hasNexusKey = !!storage.getNexusKey();
+            const errorTitle = hasNexusKey ? "Event Not Found" : "Configuration Error";
+            const errorMsg = hasNexusKey 
+                ? `Event code '<strong>${eventCode}</strong>' was not found in the Nexus database.` 
+                : "Missing Nexus API Key. Please configure it in settings.";
+            
+            await smoothUpdate('#content', `<div class="center-content error"><h1>${errorTitle}</h1><p>${errorMsg}</p></div>`, () => $('#content').addClass('vertically-centered'));
+            return;
+        }
+
+        await smoothUpdate('#team-loading-status', 'Verifying Team Registration...');
+
+        const teamExists = await checkTeamAtEvent(eventCode, teamNumber);
+        
+        if (teamExists) {
             await smoothUpdate('#team-loading-status', 'Loading Nexus Data...');
             updateEventInfo(eventCode, teamNumber);
         } else {
-            await smoothUpdate('#team-loading-status', `<span class="error">Team ${teamNumber} is not registered for event ${eventCode}.</span>`);
+            // Determine if it's likely an API key issue
+            const hasTBAKey = !!storage.getTBAKey();
+            const errorTitle = "Team Not Found";
+            const errorMsg = hasTBAKey
+                ? `Team <strong>${teamNumber}</strong> is not registered for event <strong>${eventCode}</strong>.`
+                : "Missing TBA API Key. Cannot verify team registration.";
+
+            await smoothUpdate('#content', `<div class="center-content error"><h1>${errorTitle}</h1><p>${errorMsg}</p></div>`, () => $('#content').addClass('vertically-centered'));
         }
     } else if (eventCode) {
         try {
