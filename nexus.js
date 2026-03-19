@@ -133,10 +133,8 @@ const api = {
         return $.ajax({
             url: API_CONFIG.NEXUS + endpoint,
             headers: { 
-                'Nexus-Api-Key': key,
-                'Access-Control-Allow-Origin': '*'
-            },
-            crossDomain: true
+                'Nexus-Api-Key': key
+            }
         });
     },
     fetchTBA: (endpoint) => {
@@ -151,10 +149,8 @@ const api = {
         return $.ajax({
             url: API_CONFIG.TBA + endpoint,
             headers: { 
-                'X-TBA-Auth-Key': key,
-                'Access-Control-Allow-Origin': '*'
-            },
-            crossDomain: true
+                'X-TBA-Auth-Key': key
+            }
         });
     },
     fetchStatbotics: (endpoint) => {
@@ -164,13 +160,8 @@ const api = {
             if (endpoint.includes('team_years?')) return Promise.resolve(MOCK_DATA.statbotics.epaHistory);
             return Promise.resolve(MOCK_DATA.statbotics.event);
         }
-        // Statbotics v3 expects team as integer, event as string
         return $.ajax({
-            url: API_CONFIG.STATBOTICS + endpoint,
-            headers: {
-                'Access-Control-Allow-Origin': '*'
-            },
-            crossDomain: true
+            url: API_CONFIG.STATBOTICS + endpoint
         });
     }
 };
