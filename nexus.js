@@ -132,7 +132,10 @@ const api = {
         if (!key) return Promise.reject('Missing Nexus Key');
         return $.ajax({
             url: API_CONFIG.NEXUS + endpoint,
-            headers: { 'Nexus-Api-Key': key },
+            headers: { 
+                'Nexus-Api-Key': key,
+                'Access-Control-Allow-Origin': '*'
+            },
             crossDomain: true
         });
     },
@@ -147,7 +150,10 @@ const api = {
         if (!key) return Promise.reject('Missing TBA Key');
         return $.ajax({
             url: API_CONFIG.TBA + endpoint,
-            headers: { 'X-TBA-Auth-Key': key },
+            headers: { 
+                'X-TBA-Auth-Key': key,
+                'Access-Control-Allow-Origin': '*'
+            },
             crossDomain: true
         });
     },
@@ -161,6 +167,9 @@ const api = {
         // Statbotics v3 expects team as integer, event as string
         return $.ajax({
             url: API_CONFIG.STATBOTICS + endpoint,
+            headers: {
+                'Access-Control-Allow-Origin': '*'
+            },
             crossDomain: true
         });
     }
