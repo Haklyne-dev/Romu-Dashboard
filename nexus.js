@@ -51,14 +51,40 @@ const storage = {
 };
 
 // --- URL & State Helpers ---
+const getBaseURL = () => {
+    const segments = window.location.pathname.split('/').filter(Boolean);
+    const dashIndex = segments.indexOf('dashboard');
+    if (dashIndex !== -1) {
+        // Return path up to and including 'dashboard'
+        return '/' + segments.slice(0, dashIndex + 1).join('/') + '/';
+    }
+    // Fallback if 'dashboard' isn't in URL yet
+    if (window.location.hostname.includes('github.io')) {
+        return '/' + segments[0] + '/dashboard/';
+    }
+    return '/dashboard/';
+};
+
 function parseURL() {
     const segments = window.location.pathname.split('/').filter(Boolean);
     const hasDebug = window.location.search.includes('debug=true') || storage.isDebug();
     
-    // We only care about the last two segments as eventCode and teamNumber
-    // If only one segment, it's just the eventCode
-    const teamNumber = segments.length >= 2 ? segments[segments.length - 1] : null;
-    const eventCode = segments.length >= 1 ? segments[segments.length - (teamNumber ? 2 : 1)] : null;
+    // On GitHub Pages, the first segment is the repo name (e.g. /Romu-Dashboard/)
+    // Our target structure is .../dashboard/2026mibro/5907
+    // Let's find the index of "dashboard" and use subsequent segments
+    const dashIndex = segments.indexOf('dashboard');
+    
+    let eventCode = null;
+    let teamNumber = null;
+
+    if (dashIndex !== -1) {
+        eventCode = segments[dashIndex + 1] || null;
+        teamNumber = segments[dashIndex + 2] || null;
+    } else {
+        // Fallback to previous logic: last two segments
+        teamNumber = segments.length >= 2 ? segments[segments.length - 1] : null;
+        eventCode = segments.length >= 1 ? segments[segments.length - (teamNumber ? 2 : 1)] : null;
+    }
 
     return {
         eventCode,
@@ -178,7 +204,8 @@ function renderEventSelection() {
         setTimeout(() => {
             const render = (filter = '') => {
                 const items = events.filter(e => e.name.toLowerCase().includes(filter.toLowerCase()) || e.code.includes(filter.toLowerCase()));
-                $('#event-list').html(items.map(e => createCard(e.name, e.code, `${e.code}`)).join(''));
+                const baseUrl = getBaseURL();
+                $('#event-list').html(items.map(e => createCard(e.name, e.code, `${baseUrl}${e.code}`)).join(''));
             };
             render();
             $('#event-search').on('input', function () { render($(this).val()); });
@@ -205,8 +232,9 @@ function renderTeamSelection(eventCode) {
                     (t.nickname && t.nickname.toLowerCase().includes(query))
                 );
 
+                const baseUrl = getBaseURL();
                 $('#team-list').html(items.map(t =>
-                    createCard(`Team ${t.team_number}`, t.nickname || '', `/${eventCode}/${t.team_number}`)
+                    createCard(`Team ${t.team_number}`, t.nickname || '', `${baseUrl}${eventCode}/${t.team_number}`)
                 ).join(''));
             };
 
