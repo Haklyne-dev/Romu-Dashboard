@@ -8,13 +8,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Romu Dashboard</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="nexus.js"></script>
-    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="../debugData.js"></script>
+    <script src="../nexus.js"></script>
+    <link rel="stylesheet" href="../style.css">
 </head>
 <body>
+    <header id="main-header">
+        <div class="header-content">
+            <span class="logo">Romu Dashboard</span>
+            <button id="settings-btn" title="Settings">⚙️</button>
+        </div>
+        <div id="settings-menu" class="hidden">
+            <h3>Settings</h3>
+            <div class="setting-item">
+                <label for="nexus-key-input">Nexus API Key:</label>
+                <input type="password" id="nexus-key-input" placeholder="Enter Nexus Key">
+            </div>
+            <div class="setting-item">
+                <label for="tba-key-input">The Blue Alliance Key:</label>
+                <input type="password" id="tba-key-input" placeholder="Enter TBA Key">
+            </div>
+            <div class="setting-item" style="margin-top: 10px;">
+                <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+                    Debug Mode (Offline Testing):
+                    <input type="checkbox" id="debug-mode-toggle">
+                </label>
+            </div>
+            <button id="save-settings-btn">Save Settings</button>
+        </div>
+    </header>
     <div id="app">
-        <h1>Shore Dashboard</h1>
-        <p>Loading...</p>
+        <div id="content" class="vertically-centered">
+            <h1 class="center-content">Loading...</h1>
+        </div>
     </div>
 </body>
 </html>
