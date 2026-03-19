@@ -52,11 +52,18 @@ const storage = {
 
 // --- URL & State Helpers ---
 function parseURL() {
-    const path = window.location.href.replace(window.location.origin + '/', '');
-    const segments = path.split('/');
+    const segments = window.location.pathname.split('/').filter(Boolean);
+    const hasDebug = window.location.search.includes('debug=true') || storage.isDebug();
+    
+    // We only care about the last two segments as eventCode and teamNumber
+    // If only one segment, it's just the eventCode
+    const teamNumber = segments.length >= 2 ? segments[segments.length - 1] : null;
+    const eventCode = segments.length >= 1 ? segments[segments.length - (teamNumber ? 2 : 1)] : null;
+
     return {
-        eventCode: segments[EVENT_INDEX],
-        teamNumber: segments[TEAM_INDEX]
+        eventCode,
+        teamNumber,
+        debug: hasDebug
     };
 }
 
@@ -171,7 +178,7 @@ function renderEventSelection() {
         setTimeout(() => {
             const render = (filter = '') => {
                 const items = events.filter(e => e.name.toLowerCase().includes(filter.toLowerCase()) || e.code.includes(filter.toLowerCase()));
-                $('#event-list').html(items.map(e => createCard(e.name, e.code, `/${e.code}`)).join(''));
+                $('#event-list').html(items.map(e => createCard(e.name, e.code, `${e.code}`)).join(''));
             };
             render();
             $('#event-search').on('input', function () { render($(this).val()); });
