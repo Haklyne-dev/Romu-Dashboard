@@ -8,6 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Romu Dashboard</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script>
       (function() {
@@ -44,7 +45,10 @@
     <header id="main-header">
         <div class="header-content">
             <span class="logo">Romu Dashboard</span>
-            <button id="settings-btn" title="Settings">⚙️</button>
+            <div style="display: flex; align-items: center;">
+                <button id="edit-layout-btn" title="Edit Layout" class="hidden">Edit Layout</button>
+                <button id="settings-btn" title="Settings">⚙️</button>
+            </div>
         </div>
         <div id="settings-menu" class="hidden">
             <h3>Settings</h3>
@@ -56,13 +60,10 @@
                 <label for="tba-key-input">The Blue Alliance Key:</label>
                 <input type="password" id="tba-key-input" placeholder="Enter TBA Key">
             </div>
-            <div class="setting-item" style="margin-top: 10px;">
-                <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
-                    Debug Mode (Offline Testing):
-                    <input type="checkbox" id="debug-mode-toggle">
-                </label>
+            <div id="settings-buttons">
+                <button id="save-settings-btn">Save Settings</button>
+                <button id="close-settings-btn">Close</button>
             </div>
-            <button id="save-settings-btn">Save Settings</button>
         </div>
     </header>
     <div id="app">
