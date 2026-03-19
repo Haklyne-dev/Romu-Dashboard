@@ -50,6 +50,15 @@ const storage = {
     setLayout: (layout) => localStorage.setItem('dashboardLayout', JSON.stringify(layout))
 };
 
+$.ajaxSetup({
+    error: (jqXHR, textStatus, errorThrown) => {
+        console.error('AJAX Error:', textStatus, errorThrown);
+    },
+    headers: {
+        'Accept': 'application/json'
+    }
+});
+
 // --- URL & State Helpers ---
 const getBaseURL = () => {
     const segments = window.location.pathname.split('/').filter(Boolean);
@@ -126,43 +135,50 @@ const createSearchUI = (id, placeholder) => `
 
 // --- API Wrappers ---
 const api = {
-    fetchNexus: (endpoint) => {
-        if (storage.isDebug()) return Promise.resolve(MOCK_DATA.nexus);
+    fetchNexus: async (endpoint) => {
+        if (storage.isDebug()) return MOCK_DATA.nexus;
         const key = storage.getNexusKey();
-        if (!key) return Promise.reject('Missing Nexus Key');
-        return $.ajax({
-            url: API_CONFIG.NEXUS + endpoint,
-            headers: { 
-                'Nexus-Api-Key': key
-            }
+        if (!key) throw new Error('Missing Nexus Key');
+        
+        const response = await fetch(API_CONFIG.NEXUS + endpoint, {
+            method: 'GET',
+            headers: { 'Nexus-Api-Key': key }
         });
+        if (!response.ok) throw new Error(`Nexus API Error: ${response.status}`);
+        return response.json();
     },
-    fetchTBA: (endpoint) => {
+    fetchTBA: async (endpoint) => {
         if (storage.isDebug()) {
-            if (endpoint.includes('team/')) return Promise.resolve(MOCK_DATA.tba.team);
-            if (endpoint.includes('event/')) return Promise.resolve(MOCK_DATA.tba.event);
-            if (endpoint.includes('status')) return Promise.resolve(MOCK_DATA.tba.status);
-            return Promise.resolve({});
+            if (endpoint.includes('team/')) return MOCK_DATA.tba.team;
+            if (endpoint.includes('event/')) return MOCK_DATA.tba.event;
+            if (endpoint.includes('status')) return MOCK_DATA.tba.status;
+            return {};
         }
         const key = storage.getTBAKey();
-        if (!key) return Promise.reject('Missing TBA Key');
-        return $.ajax({
-            url: API_CONFIG.TBA + endpoint,
-            headers: { 
-                'X-TBA-Auth-Key': key
-            }
+        if (!key) throw new Error('Missing TBA Key');
+
+        const response = await fetch(API_CONFIG.TBA + endpoint, {
+            method: 'GET',
+            headers: { 'X-TBA-Auth-Key': key }
         });
+        if (!response.ok) throw new Error(`TBA API Error: ${response.status}`);
+        return response.json();
     },
-    fetchStatbotics: (endpoint) => {
+    fetchStatbotics: async (endpoint) => {
         if (storage.isDebug()) {
-            if (endpoint.includes('team_event/')) return Promise.resolve(MOCK_DATA.statbotics.teamEvent);
-            if (endpoint.includes('matches?')) return Promise.resolve(MOCK_DATA.statbotics.matches);
-            if (endpoint.includes('team_years?')) return Promise.resolve(MOCK_DATA.statbotics.epaHistory);
-            return Promise.resolve(MOCK_DATA.statbotics.event);
+            if (endpoint.includes('team_event/')) return MOCK_DATA.statbotics.teamEvent;
+            if (endpoint.includes('matches?')) return MOCK_DATA.statbotics.matches;
+            if (endpoint.includes('team_years?')) return MOCK_DATA.statbotics.epaHistory;
+            return MOCK_DATA.statbotics.event;
         }
-        return $.ajax({
-            url: API_CONFIG.STATBOTICS + endpoint
+        // Statbotics v3 supports CORS on GET requests
+        // Note: setting mode: 'no-cors' will prevent you from reading the JSON response.
+        const response = await fetch(API_CONFIG.STATBOTICS + endpoint, {
+            method: 'GET',
+            mode: 'cors' 
         });
+        if (!response.ok) throw new Error(`Statbotics API Error: ${response.status}`);
+        return response.json();
     }
 };
 
