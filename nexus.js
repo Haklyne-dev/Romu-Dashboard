@@ -78,12 +78,12 @@ const getBaseURL = () => {
 function parseURL() {
     const segments = window.location.pathname.split('/').filter(Boolean);
     const hasDebug = window.location.search.includes('debug=true') || storage.isDebug();
-    
+
     // On GitHub Pages, the first segment is the repo name (e.g. /Romu-Dashboard/)
     // Our target structure is .../dashboard/2026mibro/5907
     // Let's find the index of "dashboard" and use subsequent segments
     const dashIndex = segments.indexOf('dashboard');
-    
+
     let eventCode = null;
     let teamNumber = null;
 
@@ -148,7 +148,7 @@ const api = {
         if (storage.isDebug()) return MOCK_DATA.nexus;
         const key = storage.getNexusKey();
         if (!key) throw new Error('Missing Nexus Key');
-        
+
         const response = await fetch(API_CONFIG.NEXUS + endpoint, {
             method: 'GET',
             headers: { 'Nexus-Api-Key': key }
@@ -184,7 +184,7 @@ const api = {
         // Note: setting mode: 'no-cors' will prevent you from reading the JSON response.
         const response = await fetch(API_CONFIG.STATBOTICS + endpoint, {
             method: 'GET',
-            mode: 'cors' 
+            mode: 'cors'
         });
         if (!response.ok) throw new Error(`Statbotics API Error: ${response.status}`);
         return response.json();
@@ -196,25 +196,31 @@ async function updateEventInfo(eventCode, teamNumber) {
     try {
         const eventData = await api.fetchNexus(`event/${eventCode}`);
         state.nexus.event = eventData;
-        
+
         await smoothUpdate('#team-loading-status', 'Loading TBA Data...');
-        
+
         const teamMatchData = await api.fetchTBA(`team/frc${teamNumber}/event/${eventCode}/matches`);
         state.tba.event = teamMatchData;
         state.tba.record = {
             wins: teamMatchData.filter(m => m.score_breakdown && m.score_breakdown.alliances.red.teams.includes(`frc${teamNumber}`) && m.winning_alliance === 'red').length +
-                  teamMatchData.filter(m => m.score_breakdown && m.score_breakdown.alliances.blue.teams.includes(`frc${teamNumber}`) && m.winning_alliance === 'blue').length,
+                teamMatchData.filter(m => m.score_breakdown && m.score_breakdown.alliances.blue.teams.includes(`frc${teamNumber}`) && m.winning_alliance === 'blue').length,
             losses: teamMatchData.filter(m => m.score_breakdown && m.score_breakdown.alliances.red.teams.includes(`frc${teamNumber}`) && m.winning_alliance === 'blue').length +
-                    teamMatchData.filter(m => m.score_breakdown && m.score_breakdown.alliances.blue.teams.includes(`frc${teamNumber}`) && m.winning_alliance === 'red').length,
+                teamMatchData.filter(m => m.score_breakdown && m.score_breakdown.alliances.blue.teams.includes(`frc${teamNumber}`) && m.winning_alliance === 'red').length,
             ties: teamMatchData.filter(m => m.score_breakdown && (m.winning_alliance === '' || m.winning_alliance === null)).length
         };
 
         await smoothUpdate('#team-loading-status', 'Loading Statbotics Data...');
-        
+
         const statboticsData = await api.fetchStatbotics(`event/${eventCode}`);
         state.statbotics.event = statboticsData;
         state.lastUpdate = new Date();
+        await smoothUpdate('#team-loading-status', 'Loading dashboard...');
+        await smoothUpdate('#content', generateDashboardHTML(), () => $('#content').removeClass('vertically-centered'));
         displayEventInfo();
+        window.setInterval(() => {
+            updateEventInfo(eventCode, teamNumber);
+            displayEventInfo();
+        }, 30 * 1000); // Refresh every 30 seconds
     } catch (err) {
         console.error('Error updating event info:', err);
         await smoothUpdate('#team-loading-status', `<span class="error">Error loading data. Check API keys and console for details.</span>`);
@@ -222,7 +228,63 @@ async function updateEventInfo(eventCode, teamNumber) {
 }
 
 function displayEventInfo() {
+    const dashboardHtml = generateDashboardHTML();
+    smoothUpdate('#content', dashboardHtml, () => {
+        $('#content').removeClass('vertically-centered');
+    });
+}
 
+function createWidget(title, content, classes = "") {
+    return `
+        <div class="widget ${classes}">
+            <div class="widget-header">
+                <span class="widget-title">${title}</span>
+            </div>
+            <div class="widget-content">
+                ${content}
+            </div>
+        </div>
+    `;
+}
+
+function generateDashboardHTML() {
+    // Determine user's record
+    const recordText = state.tba.record 
+        ? `${state.tba.record.wins} - ${state.tba.record.losses} - ${state.tba.record.ties}` 
+        : "N/A";
+
+    const eventName = state.nexus.event?.name || "Event Dashboard";
+
+    // Build Widgets with Grid Positioning
+    const widgets = [
+        createWidget("Team Info", `
+            <h2>Team ${state.teamNumber}</h2>
+            <p>${state.nexus.event?.name || ""}</p>
+            <p>Record: <strong>${recordText}</strong></p>
+        `, "r1 c1 w4 h3"),
+
+        createWidget("Next Matches", `
+            <div id="match-list">Loading matches...</div>
+        `, "r4 c1 w4 h6"),
+
+        createWidget("Event Announcements", `
+            <div id="announcement-list">No announcements.</div>
+        `, "r1 c5 w8 h4"),
+
+        createWidget("EPA Stats", `
+            <div id="epa-stats">Statbotics data loading...</div>
+        `, "r5 c5 w4 h5"),
+
+        createWidget("Pit Status", `
+            <div id="pit-status">Pit info loading...</div>
+        `, "r5 c9 w4 h5")
+    ];
+
+    return `
+        <div id="dashboard" class="free-grid">
+            ${widgets.join('')}
+        </div>
+    `;
 }
 
 // --- Page Renderers ---
