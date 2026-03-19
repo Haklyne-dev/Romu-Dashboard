@@ -299,12 +299,12 @@ async function updateEventInfo(eventCode, teamNumber, silent = false) {
     if (!silent && dataRefreshInterval) clearInterval(dataRefreshInterval);
 
     try {
-        if (!silent) await smoothUpdate('#team-loading-status', 'Loading Nexus Data...');
+        if (!silent) await smoothUpdate('#team-loading-status', 'Loading Nexus Data');
 
         const eventData = await api.fetchNexus(`event/${eventCode}`);
         state.nexus.event = eventData;
 
-        if (!silent) await smoothUpdate('#team-loading-status', 'Loading TBA Data...');
+        if (!silent) await smoothUpdate('#team-loading-status', 'Loading TBA Data');
 
         const teamMatchData = await api.fetchTBA(`team/frc${teamNumber}/event/${eventCode}/matches`);
         // Note: Preserving original logic where event is temporarily matches
@@ -318,7 +318,7 @@ async function updateEventInfo(eventCode, teamNumber, silent = false) {
         const eventDataTBA = await api.fetchTBA(`event/${eventCode}`);
         state.tba.event = eventDataTBA;
 
-        if (!silent) await smoothUpdate('#team-loading-status', 'Loading Statbotics Data...');
+        if (!silent) await smoothUpdate('#team-loading-status', 'Loading Statbotics Data');
 
         const statboticsData = await api.fetchStatbotics(`event/${eventCode}`);
         state.statbotics.event = statboticsData;
@@ -327,7 +327,7 @@ async function updateEventInfo(eventCode, teamNumber, silent = false) {
         state.teamNumber = teamNumber;
 
         if (!silent) {
-            await smoothUpdate('#team-loading-status', 'Loading dashboard...');
+            await smoothUpdate('#team-loading-status', 'Loading dashboard');
             displayEventInfo(true); // Animate first load
             
             // Start usage interval
@@ -968,7 +968,7 @@ $(async () => {
     const { eventCode, teamNumber } = parseURL();
 
     if (teamNumber) {
-        await smoothUpdate('#content', `<h1>Initializing...</h1><p id="team-loading-status">Verifying Event Code...</p>`, () => $('#content').addClass('vertically-centered'));
+        await smoothUpdate('#content', `<h1>Initializing<span class="loading-dots"></span></h1><p id="team-loading-status">Verifying Event Code</p>`, () => $('#content').addClass('vertically-centered'));
 
         // Check if event exists in Nexus first
         const eventExists = await checkEventExists(eventCode);
@@ -985,12 +985,12 @@ $(async () => {
             return;
         }
 
-        await smoothUpdate('#team-loading-status', 'Verifying Team Registration...');
+        await smoothUpdate('#team-loading-status', 'Verifying Team Registration');
 
         const teamExists = await checkTeamAtEvent(eventCode, teamNumber);
         
         if (teamExists) {
-            await smoothUpdate('#team-loading-status', 'Loading Nexus Data...');
+            await smoothUpdate('#team-loading-status', 'Loading Nexus Data');
             updateEventInfo(eventCode, teamNumber);
         } else {
             // Determine if it's likely an API key issue
