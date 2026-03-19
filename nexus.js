@@ -178,6 +178,16 @@ const WIDGET_REGISTRY = {
         title: 'Pit Status',
         defaultSize: { w: 280, h: 330 },
         render: (state) => `<div id="pit-status">Pit info loading...</div>`
+    },
+    'part-requests': {
+        title: 'Part Requests',
+        defaultSize: { w: 400, h: 300 },
+        render: (state) => `<div id="part-requests-list">No active requests.</div>`
+    },
+    'next-match-single': {
+        title: 'Next Match',
+        defaultSize: { w: 300, h: 200 },
+        render: (state) => `<div id="next-match-single">Loading next match...</div>`
     }
 };
 // Add any new widgets to this object ^^^
@@ -236,11 +246,9 @@ async function updateEventInfo(eventCode, teamNumber, silent = false) {
         // Note: Preserving original logic where event is temporarily matches
         state.tba.event = teamMatchData;
         state.tba.record = {
-            wins: teamMatchData.filter(m => m.score_breakdown && m.score_breakdown.alliances.red.teams.includes(`frc${teamNumber}`) && m.winning_alliance === 'red').length +
-                teamMatchData.filter(m => m.score_breakdown && m.score_breakdown.alliances.blue.teams.includes(`frc${teamNumber}`) && m.winning_alliance === 'blue').length,
-            losses: teamMatchData.filter(m => m.score_breakdown && m.score_breakdown.alliances.red.teams.includes(`frc${teamNumber}`) && m.winning_alliance === 'blue').length +
-                teamMatchData.filter(m => m.score_breakdown && m.score_breakdown.alliances.blue.teams.includes(`frc${teamNumber}`) && m.winning_alliance === 'red').length,
-            ties: teamMatchData.filter(m => m.score_breakdown && (m.winning_alliance === '' || m.winning_alliance === null)).length
+            wins: teamMatchData.filter(m => m.winning_alliance && m.alliances[m.winning_alliance].team_keys.includes(`frc${teamNumber}`)).length,
+            losses: teamMatchData.filter(m => m.winning_alliance && !m.alliances[m.winning_alliance].team_keys.includes(`frc${teamNumber}`) && m.winning_alliance !== '').length,
+            ties: teamMatchData.filter(m => m.comp_level === 'qm' && m.winning_alliance === '').length
         };
 
         const eventDataTBA = await api.fetchTBA(`event/${eventCode}`);
@@ -348,58 +356,60 @@ function generateDefaultLayout() {
     
     // Account for header height to ensure widgets fit within the visible area
     const headerHeight = $('#main-header').outerHeight() || 60;
-    const H = Math.max($(window).height() - headerHeight, 600);
-    
     const gap = 20;
-
-    // Grid System: 12 columns
-    // Use relative percentages but map to pixels for absolute positioning
     
-    // Column 1: "Sidebar" style (30%)
+    // User requested "one grid space shorter" -> subtract extra gap
+    const H = Math.max($(window).height() - headerHeight - gap * 2, 600);
+    
+    // Column 1 (Left): Next Matches (Full Height)
     const c1X = gap;
-    const c1W = Math.floor((W - 3*gap) * 0.3);
-    
-    // Column 2: "Main" style (70%)
+    const c1W = Math.max(300, Math.floor((W - 3*gap) * 0.25));
+    const c1H = H;
+
+    // Column 2 (Right): The rest
     const c2X = c1X + c1W + gap;
     const c2W = W - c2X - gap;
 
-    // Vertical splits
-    const h1 = 180; // Team Info height
-    // Announcements: Top right
-    const h2 = Math.min(300, Math.floor(H * 0.35)); 
+    // Right Column Row Layout
+    // 1. Team Info (Top, Taller)
+    const row1H = Math.floor(H * 0.45); 
+
+    // 2. Middle Row: Next Match Single & Part Requests
+    const row2Y = gap + row1H + gap;
+    const row2H = Math.floor(H * 0.25);
+    const splitW = Math.floor((c2W - gap) / 2);
+
+    // 3. Bottom Row: Announcements (Remaining)
+    const row3Y = row2Y + row2H + gap;
+    const row3H = Math.max(100, H - row3Y);
 
     const layout = [
-        // Team Info: Top Left
-        {
-            id: 'team-info',
-            pos: { x: c1X, y: gap, w: c1W, h: h1 }
-        },
-        // Match List: Bottom Left (Rest of height)
+        // Left Column
         {
             id: 'next-matches',
-            pos: { x: c1X, y: gap + h1 + gap, w: c1W, h: H - (gap*3 + h1) }
+            pos: { x: c1X, y: gap, w: c1W, h: c1H }
         },
-        // Announcements: Top Right
+        // Right Column - Top
+        {
+            id: 'team-info',
+            pos: { x: c2X, y: gap, w: c2W, h: row1H }
+        },
+        // Right Column - Middle Left
+        {
+            id: 'next-match-single',
+            pos: { x: c2X, y: row2Y, w: splitW, h: row2H }
+        },
+        // Right Column - Middle Right
+        {
+            id: 'part-requests',
+            pos: { x: c2X + splitW + gap, y: row2Y, w: splitW, h: row2H }
+        },
+        // Right Column - Bottom
         {
             id: 'announcements',
-            pos: { x: c2X, y: gap, w: c2W, h: h2 }
+            pos: { x: c2X, y: row3Y, w: c2W, h: row3H }
         }
     ];
-
-    // Bottom Right Split (EPA / Pit)
-    const bottomY = gap + h2 + gap;
-    const bottomH = H - bottomY - gap;
-    const splitW = (c2W - gap) / 2;
-
-    layout.push({
-        id: 'epa-stats',
-        pos: { x: c2X, y: bottomY, w: splitW, h: bottomH }
-    });
-
-    layout.push({
-        id: 'pit-status',
-        pos: { x: c2X + splitW + gap, y: bottomY, w: splitW, h: bottomH }
-    });
 
     return layout.map(w => {
         const def = WIDGET_REGISTRY[w.id];
