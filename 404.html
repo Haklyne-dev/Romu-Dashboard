@@ -41,6 +41,17 @@
         loadScript("debugData.js");
         loadScript("nexus.js");
         loadStyle("style.css");
+
+        window.addEventListener("DOMContentLoaded", () => {
+          const settingsIcon = document.getElementById("settings-icon");
+          if (settingsIcon) {
+            settingsIcon.src = root + "gear.svg";
+          }
+          const homeLink = document.getElementById("home-link");
+          if (homeLink) {
+            homeLink.href = root + "dashboard/";
+          }
+        });
       })();
     </script>
   </head>
@@ -48,11 +59,13 @@
     <header id="main-header">
       <div class="header-content">
         <span class="logo"
-          ><a class="undecorated" href="/dashboard/"><span class="bpmf-huninn-regular shapes red">ロ</span><span class="bpmf-huninn-regular shapes accent">ム  </span>Romu Dashboard</a></span
+          ><a id="home-link" class="undecorated" href="/dashboard/"><span class="bpmf-huninn-regular shapes red">ロ</span><span class="bpmf-huninn-regular shapes accent">ム  </span>Romu Dashboard</a></span
         >
         <div style="display: flex; align-items: center">
           <button id="edit-layout-btn" title="Edit Layout" class="hidden">Edit Layout</button>
-          <button id="settings-btn" title="Settings">⚙️</button>
+          <button id="settings-btn" title="Settings">
+            <img id="settings-icon" alt="Settings" />
+          </button>
         </div>
       </div>
       <div id="settings-menu" class="hidden">

@@ -816,7 +816,11 @@ $(async () => {
     try {
         // Construct correct path for JSON based on app root
         const dashboardUrl = getBaseURL(); // e.g. "/Repo/dashboard/" or "/dashboard/"
-        const rootUrl = dashboardUrl.replace('dashboard/', ''); // e.g. "/Repo/" or "/"
+        // Use more robust replacement to handle repos with 'dashboard' in the name
+        let rootUrl = dashboardUrl;
+        if (rootUrl.endsWith('dashboard/')) {
+            rootUrl = rootUrl.slice(0, -10); // Remove last 10 chars ("dashboard/")
+        }
         const jsonPath = rootUrl + 'defaultLayout.json';
 
         DEFAULT_LAYOUT_CONFIG = await $.getJSON(jsonPath);
