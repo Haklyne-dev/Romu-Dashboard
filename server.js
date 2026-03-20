@@ -30,6 +30,9 @@ http.createServer((req, res) => {
         case '.jpg':
             contentType = 'image/jpg';
             break;
+        case '.svg':
+            contentType = 'image/svg+xml';
+            break;
     }
 
     // Read and serve the file

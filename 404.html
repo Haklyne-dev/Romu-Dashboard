@@ -23,13 +23,16 @@
         // This helper will find the correct relative path prefix
         const getRoot = () => {
           if (window.location.hostname.includes("github.io")) {
-            // Repo name is usually segments[0]
-            return "/" + pathSegments[0] + "/";
+            const segments = window.location.pathname.split("/").filter(Boolean);
+            if (segments.length > 0) {
+              return "/" + segments[0] + "/";
+            }
           }
           return "/";
         };
 
         const root = getRoot();
+        console.log("Calculated root:", root); // Debug for potential path issues
 
         const loadScript = (src) => {
           document.write('<script src="' + root + src + '"><\/script>');
@@ -46,6 +49,14 @@
           const settingsIcon = document.getElementById("settings-icon");
           if (settingsIcon) {
             settingsIcon.src = root + "gear.svg";
+          }
+          const settingsBtn = document.getElementById("settings-btn");
+          if (settingsBtn && settingsIcon) {
+            settingsBtn.addEventListener("click", () => {
+              settingsIcon.classList.remove("spin-animation");
+              void settingsIcon.offsetWidth; // Trigger reflow
+              settingsIcon.classList.add("spin-animation");
+            });
           }
           const homeLink = document.getElementById("home-link");
           if (homeLink) {

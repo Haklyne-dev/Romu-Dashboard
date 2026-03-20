@@ -143,16 +143,25 @@ body {
 #settings-icon {
   width: 24px;
   height: 24px;
-  filter: invert(1);
+  filter: grayscale(100%) sepia(100%) hue-rotate(135deg) saturate(100%);
   transition: transform 0.3s ease;
 }
 
-#settings-btn:hover #settings-icon {
+.spin-animation {
+  animation: gear-spin 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes gear-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+#settings-btn:hover #settings-icon:not(.spin-animation) {
   transform: rotate(45deg) scale(1.1);
 }
 
-#settings-btn:active #settings-icon {
-  transform: rotate(-90deg) scale(0.8);
+#settings-btn #settings-icon.spin-animation {
+  transform: rotate(360deg) scale(0.9);
 }
 
 #settings-menu {
