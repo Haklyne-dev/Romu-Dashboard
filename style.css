@@ -36,13 +36,27 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  max-width: 1200px;
   margin: 0 auto;
 }
 
 .logo {
   font-size: 1.25rem;
   font-weight: bold;
+}
+
+.shapes {
+  font-size: 1.5rem;
+  margin-right: -8px;
+  padding: 0;
+  font-weight: bold !important;
+}
+
+.accent {
+  color: var(--accent-color);
+}
+
+.red {
+  color: #ff4444;
 }
 
 /* --- Alliance/Match Styles --- */
@@ -713,4 +727,10 @@ body {
   border-radius: 4px;
   margin: 20px auto;
   width: fit-content;
+}
+
+.bpmf-huninn-regular {
+  font-family: "Bpmf Huninn", sans-serif;
+  font-weight: 400;
+  font-style: normal;
 }

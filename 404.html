@@ -1,33 +1,36 @@
-<!DOCTYPE html>
+<!doctype html>
 <!-- 404.html is used to allow github pages to render dynamic data based on url-->
 
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bpmf+Huninn&display=swap" rel="stylesheet" />
     <title>Romu Dashboard</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script>
-      (function() {
-        const pathSegments = window.location.pathname.split('/').filter(Boolean);
+      (function () {
+        const pathSegments = window.location.pathname.split("/").filter(Boolean);
         // If we are deep in the path (e.g. /event/team), we need to go up to find files at root
         // GitHub Pages often has a repository name as the first segment
         // For local dev, we might be at /
-        
+
         // This helper will find the correct relative path prefix
         const getRoot = () => {
-          if (window.location.hostname.includes('github.io')) {
+          if (window.location.hostname.includes("github.io")) {
             // Repo name is usually segments[0]
-            return '/' + pathSegments[0] + '/';
+            return "/" + pathSegments[0] + "/";
           }
-          return '/';
+          return "/";
         };
-        
+
         const root = getRoot();
-        
+
         const loadScript = (src) => {
           document.write('<script src="' + root + src + '"><\/script>');
         };
@@ -35,41 +38,43 @@
           document.write('<link rel="stylesheet" href="' + root + href + '">');
         };
 
-        loadScript('debugData.js');
-        loadScript('nexus.js');
-        loadStyle('style.css');
+        loadScript("debugData.js");
+        loadScript("nexus.js");
+        loadStyle("style.css");
       })();
     </script>
-</head>
-<body>
+  </head>
+  <body>
     <header id="main-header">
-        <div class="header-content">
-            <span class="logo"><a class="undecorated" href="/dashboard/">Romu Dashboard</a></span>
-            <div style="display: flex; align-items: center;">
-                <button id="edit-layout-btn" title="Edit Layout" class="hidden">Edit Layout</button>
-                <button id="settings-btn" title="Settings">⚙️</button>
-            </div>
+      <div class="header-content">
+        <span class="logo"
+          ><a class="undecorated" href="/dashboard/"><span class="bpmf-huninn-regular shapes red">ロ</span><span class="bpmf-huninn-regular shapes accent">ム  </span>Romu Dashboard</a></span
+        >
+        <div style="display: flex; align-items: center">
+          <button id="edit-layout-btn" title="Edit Layout" class="hidden">Edit Layout</button>
+          <button id="settings-btn" title="Settings">⚙️</button>
         </div>
-        <div id="settings-menu" class="hidden">
-            <h3>Settings</h3>
-            <div class="setting-item">
-                <label for="nexus-key-input">Nexus API Key:</label>
-                <input type="password" id="nexus-key-input" placeholder="Enter Nexus Key">
-            </div>
-            <div class="setting-item">
-                <label for="tba-key-input">The Blue Alliance Key:</label>
-                <input type="password" id="tba-key-input" placeholder="Enter TBA Key">
-            </div>
-            <div id="settings-buttons">
-                <button id="save-settings-btn">Save Settings</button>
-                <button id="close-settings-btn">Close</button>
-            </div>
+      </div>
+      <div id="settings-menu" class="hidden">
+        <h3>Settings</h3>
+        <div class="setting-item">
+          <label for="nexus-key-input">Nexus API Key:</label>
+          <input type="password" id="nexus-key-input" placeholder="Enter Nexus Key" />
         </div>
+        <div class="setting-item">
+          <label for="tba-key-input">The Blue Alliance Key:</label>
+          <input type="password" id="tba-key-input" placeholder="Enter TBA Key" />
+        </div>
+        <div id="settings-buttons">
+          <button id="save-settings-btn">Save Settings</button>
+          <button id="close-settings-btn">Close</button>
+        </div>
+      </div>
     </header>
     <div id="app">
-        <div id="content" class="vertically-centered">
-            <h1 class="center-content">Loading<span class="loading-dots"></span></h1>
-        </div>
+      <div id="content" class="vertically-centered">
+        <h1 class="center-content">Loading<span class="loading-dots"></span></h1>
+      </div>
     </div>
-</body>
+  </body>
 </html>
