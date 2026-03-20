@@ -266,7 +266,11 @@ const api = {
             method: 'GET',
             headers: { 'Nexus-Api-Key': key }
         });
-        if (!response.ok) throw new Error(`Nexus API Error: ${response.status}`);
+        if (!response.ok) {
+            const err = new Error(`Nexus API Error: ${response.status}`);
+            err.status = response.status;
+            throw err;
+        }
         return response.json();
     },
     fetchTBA: async (endpoint) => {
@@ -277,7 +281,11 @@ const api = {
             method: 'GET',
             headers: { 'X-TBA-Auth-Key': key }
         });
-        if (!response.ok) throw new Error(`TBA API Error: ${response.status}`);
+        if (!response.ok) {
+            const err = new Error(`TBA API Error: ${response.status}`);
+            err.status = response.status;
+            throw err;
+        }
         return response.json();
     },
     fetchStatbotics: async (endpoint) => {
@@ -340,7 +348,15 @@ async function updateEventInfo(eventCode, teamNumber, silent = false) {
         
     } catch (err) {
         console.error('Error updating event info:', err);
-        if (!silent) await smoothUpdate('#team-loading-status', `<span class="error">Error loading data. Check API keys and console for details.</span>`);
+        if (!silent) {
+            let errorMsg = 'Error loading data. Check console for details.';
+            if (err.status === 401 || err.status === 403) {
+                errorMsg = `Invalid API Key for ${err.message.includes('Nexus') ? 'Nexus' : 'TBA'}. Please check your settings.`;
+            } else if (err.status === 404) {
+                errorMsg = 'Event or Team data not found (404).';
+            }
+            await smoothUpdate('#team-loading-status', `<span class="error">${errorMsg}</span>`);
+        }
     }
 }
 
@@ -773,6 +789,10 @@ function checkEventExists(eventCode) {
         return Object.keys(data).includes(eventCode);
     }).catch(err => {
         console.error('API Error:', err);
+        // If it's an auth error (401/403), we want to surface that
+        if (err.status === 401 || err.status === 403) {
+            throw err;
+        }
         return false;
     });
 }
@@ -782,6 +802,10 @@ function checkTeamAtEvent(eventCode, teamNumber) {
         return keys.includes(`frc${teamNumber}`);
     }).catch(err => {
         console.error('TBA API Error (checkTeamAtEvent):', err);
+        // If it's an auth error (401/403), we want to surface that
+        if (err.status === 401 || err.status === 403) {
+            throw err;
+        }
         return false;
     });
 }
@@ -970,36 +994,47 @@ $(async () => {
     if (teamNumber) {
         await smoothUpdate('#content', `<h1>Initializing<span class="loading-dots"></span></h1><p id="team-loading-status">Verifying Event Code</p>`, () => $('#content').addClass('vertically-centered'));
 
-        // Check if event exists in Nexus first
-        const eventExists = await checkEventExists(eventCode);
-        
-        if (!eventExists) {
-            // Determine if it's likely an API key issue or just missing event
-            const hasNexusKey = !!storage.getNexusKey();
-            const errorTitle = hasNexusKey ? "Event Not Found" : "Configuration Error";
-            const errorMsg = hasNexusKey 
-                ? `Event code '<strong>${eventCode}</strong>' was not found in the Nexus database.` 
-                : "Missing Nexus API Key. Please configure it in settings.";
+        try {
+            // Check if event exists in Nexus first
+            const eventExists = await checkEventExists(eventCode);
             
-            await smoothUpdate('#content', `<div class="center-content error"><h1>${errorTitle}</h1><p>${errorMsg}</p></div>`, () => $('#content').addClass('vertically-centered'));
-            return;
-        }
+            if (!eventExists) {
+                // Determine if it's likely an API key issue or just missing event
+                const hasNexusKey = !!storage.getNexusKey();
+                const errorTitle = hasNexusKey ? "Event Not Found" : "Configuration Error";
+                const errorMsg = hasNexusKey 
+                    ? `Event code '<strong>${eventCode}</strong>' was not found in the Nexus database.` 
+                    : "Missing Nexus API Key. Please configure it in settings.";
+                
+                await smoothUpdate('#content', `<div class="center-content error"><h1>${errorTitle}</h1><p>${errorMsg}</p></div>`, () => $('#content').addClass('vertically-centered'));
+                return;
+            }
 
-        await smoothUpdate('#team-loading-status', 'Verifying Team Registration');
+            await smoothUpdate('#team-loading-status', 'Verifying Team Registration');
 
-        const teamExists = await checkTeamAtEvent(eventCode, teamNumber);
-        
-        if (teamExists) {
-            await smoothUpdate('#team-loading-status', 'Loading Nexus Data');
-            updateEventInfo(eventCode, teamNumber);
-        } else {
-            // Determine if it's likely an API key issue
-            const hasTBAKey = !!storage.getTBAKey();
-            const errorTitle = "Team Not Found";
-            const errorMsg = hasTBAKey
-                ? `Team <strong>${teamNumber}</strong> is not registered for event <strong>${eventCode}</strong>.`
-                : "Missing TBA API Key. Cannot verify team registration.";
+            const teamExists = await checkTeamAtEvent(eventCode, teamNumber);
+            
+            if (teamExists) {
+                await smoothUpdate('#team-loading-status', 'Loading Nexus Data');
+                updateEventInfo(eventCode, teamNumber);
+            } else {
+                // Determine if it's likely an API key issue
+                const hasTBAKey = !!storage.getTBAKey();
+                const errorTitle = "Team Not Found";
+                const errorMsg = hasTBAKey
+                    ? `Team <strong>${teamNumber}</strong> is not registered for event <strong>${eventCode}</strong>.`
+                    : "Missing TBA API Key. Cannot verify team registration.";
 
+                await smoothUpdate('#content', `<div class="center-content error"><h1>${errorTitle}</h1><p>${errorMsg}</p></div>`, () => $('#content').addClass('vertically-centered'));
+            }
+        } catch (err) {
+            console.error('Initialization Error:', err);
+            let errorTitle = "Connection Error";
+            let errorMsg = "Failed to reach API server. Check your internet connection.";
+            if (err.status === 401 || err.status === 403) {
+                errorTitle = "Authentication Error";
+                errorMsg = `Your ${err.message.includes('Nexus') ? 'Nexus' : 'TBA'} API key appears to be incorrect. Please check settings.`;
+            }
             await smoothUpdate('#content', `<div class="center-content error"><h1>${errorTitle}</h1><p>${errorMsg}</p></div>`, () => $('#content').addClass('vertically-centered'));
         }
     } else if (eventCode) {
