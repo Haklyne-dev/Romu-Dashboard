@@ -399,6 +399,10 @@ const api = {
             headers: { 'Nexus-Api-Key': key }
         });
         if (!response.ok) {
+            if (response.status === 404) {
+                console.warn(`Nexus API 404 for ${endpoint}. Returning empty data.`);
+                return null;
+            }
             const err = new Error(`Nexus API Error: ${response.status}`);
             err.status = response.status;
             throw err;
@@ -451,16 +455,16 @@ async function updateEventInfo(eventCode, teamNumber, silent = false) {
         if (!silent) await smoothUpdate('#team-loading-status', 'Loading Nexus Data');
 
         const eventData = await api.fetchNexus(`event/${eventCode}`);
-        state.nexus.event = eventData;
+        state.nexus.event = eventData || {};
 
         console.log('Nexus Event Data:', eventData);
 
         //parse nexus event data into subsections for easier widget rendering
-        state.nexus.announcements = eventData.announcements || [];
-        state.nexus.partRequests = eventData.partRequests || [];
+        state.nexus.announcements = state.nexus.event.announcements || [];
+        state.nexus.partRequests = state.nexus.event.partRequests || [];
 
         const pitData = await api.fetchNexus(`event/${eventCode}/pits`);
-        state.nexus.pits = pitData;
+        state.nexus.pits = pitData || {};
 
         if (!silent) await smoothUpdate('#team-loading-status', 'Loading TBA Data');
 
