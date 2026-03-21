@@ -16,11 +16,8 @@
     <script>
       (function () {
         const pathSegments = window.location.pathname.split("/").filter(Boolean);
-        // If we are deep in the path (e.g. /event/team), we need to go up to find files at root
-        // GitHub Pages often has a repository name as the first segment
-        // For local dev, we might be at /
 
-        // This helper will find the correct relative path prefix
+        // find relative prefix
         const getRoot = () => {
           if (window.location.hostname.includes("github.io")) {
             const segments = window.location.pathname.split("/").filter(Boolean);
@@ -32,7 +29,6 @@
         };
 
         const root = getRoot();
-        console.log("Calculated root:", root); // Debug for potential path issues
 
         const loadScript = (src) => {
           document.write('<script src="' + root + src + '"><\/script>');
@@ -41,6 +37,7 @@
           document.write('<link rel="stylesheet" href="' + root + href + '">');
         };
 
+        // load correct files no matter our point in the url structure
         loadScript("debugData.js");
         loadScript("nexus.js");
         loadStyle("style.css");
@@ -53,9 +50,22 @@
           const settingsBtn = document.getElementById("settings-btn");
           if (settingsBtn && settingsIcon) {
             settingsBtn.addEventListener("click", () => {
-              settingsIcon.classList.remove("spin-animation");
+              settingsIcon.classList.remove("spin-animation", "hover-animation");
               void settingsIcon.offsetWidth; // Trigger reflow
               settingsIcon.classList.add("spin-animation");
+            });
+            settingsBtn.addEventListener("mouseenter", () => {
+              if (!settingsIcon.classList.contains("spin-animation")) {
+                settingsIcon.classList.add("hover-animation");
+              }
+            });
+            settingsBtn.addEventListener("mouseleave", () => {
+              settingsIcon.classList.remove("hover-animation");
+            });
+            settingsIcon.addEventListener("animationend", (e) => {
+              if (e.animationName === "gear-spin") {
+                settingsIcon.classList.remove("spin-animation");
+              }
             });
           }
           const homeLink = document.getElementById("home-link");
@@ -70,7 +80,7 @@
     <header id="main-header">
       <div class="header-content">
         <span class="logo"
-          ><a id="home-link" class="undecorated" href="/dashboard/"><span class="bpmf-huninn-regular shapes red">ロ</span><span class="bpmf-huninn-regular shapes accent">ム  </span>Romu Dashboard</a></span
+          ><a id="home-link" class="undecorated" href="/dashboard/"><span class="bpmf-huninn-regular shapes red">ロ</span><span class="bpmf-huninn-regular shapes accent">ム </span>Romu Dashboard</a></span
         >
         <div style="display: flex; align-items: center">
           <button id="edit-layout-btn" title="Edit Layout" class="hidden">Edit Layout</button>

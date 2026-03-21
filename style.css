@@ -144,24 +144,20 @@ body {
   width: 24px;
   height: 24px;
   filter: grayscale(100%) sepia(100%) hue-rotate(135deg) saturate(100%);
-  transition: transform 0.3s ease;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .spin-animation {
   animation: gear-spin 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@keyframes gear-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-#settings-btn:hover #settings-icon:not(.spin-animation) {
+.hover-animation {
   transform: rotate(45deg) scale(1.1);
 }
 
-#settings-btn #settings-icon.spin-animation {
-  transform: rotate(360deg) scale(0.9);
+@keyframes gear-spin {
+  from { transform: rotate(0deg) scale(1.1); }
+  to { transform: rotate(360deg) scale(1.1); }
 }
 
 #settings-menu {
@@ -196,24 +192,22 @@ body {
   box-sizing: border-box;
 }
 
-#save-settings-btn {
+#save-settings-btn,
+#close-settings-btn {
   flex: 1;
   padding: 10px;
-  background: #007acc;
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
 }
 
+#save-settings-btn {
+  background: #007acc;
+}
+
 #close-settings-btn {
-  flex: 1;
-  padding: 10px;
   background: #444;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
 }
 
 #settings-buttons {
@@ -237,27 +231,6 @@ body {
   background-color: #007acc;
   border-color: #0099ff;
 }
-
-.widget-remove-btn {
-  background: rgba(255, 50, 50, 0.8);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 10px;
-  cursor: pointer;
-  display: none;
-}
-
-.editing .widget-remove-btn {
-  display: block;
-}
-
-.editing .widget {
-  border: 1px dashed #007acc;
-  cursor: move;
-}
-
 .add-widget-container {
   grid-column: 1 / -1;
   /* display: flex;  Managed by JS inline style now */

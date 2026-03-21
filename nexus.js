@@ -8,7 +8,6 @@ const API_CONFIG = {
     TBA: 'https://www.thebluealliance.com/api/v3/'
 };
 
-// --- State Management ---
 let state = {
     eventCode: null,
     teamNumber: null,
@@ -34,7 +33,6 @@ let state = {
     lastUpdate: null
 };
 
-// --- Storage Helpers ---
 const storage = {
     get: (key) => localStorage.getItem(key),
     set: (key, val) => localStorage.setItem(key, val),
@@ -62,15 +60,12 @@ $.ajaxSetup({
     }
 });
 
-// --- URL & State Helpers ---
 const getBaseURL = () => {
     const segments = window.location.pathname.split('/').filter(Boolean);
     const dashIndex = segments.indexOf('dashboard');
     if (dashIndex !== -1) {
-        // Return path up to and including 'dashboard'
         return '/' + segments.slice(0, dashIndex + 1).join('/') + '/';
     }
-    // Fallback if 'dashboard' isn't in URL yet
     if (window.location.hostname.includes('github.io')) {
         return '/' + segments[0] + '/dashboard/';
     }
@@ -80,9 +75,6 @@ const getBaseURL = () => {
 function parseURL() {
     const segments = window.location.pathname.split('/').filter(Boolean);
 
-    // On GitHub Pages, the first segment is the repo name (e.g. /Romu-Dashboard/)
-    // Our target structure is .../dashboard/2026mibro/5907
-    // Let's find the index of "dashboard" and use subsequent segments
     const dashIndex = segments.indexOf('dashboard');
 
     let eventCode = null;
@@ -92,7 +84,6 @@ function parseURL() {
         eventCode = segments[dashIndex + 1] || null;
         teamNumber = segments[dashIndex + 2] || null;
     } else {
-        // Fallback to previous logic: last two segments
         teamNumber = segments.length >= 2 ? segments[segments.length - 1] : null;
         eventCode = segments.length >= 1 ? segments[segments.length - (teamNumber ? 2 : 1)] : null;
     }
@@ -106,7 +97,6 @@ function parseURL() {
 const URLHasTeam = () => { const d = parseURL(); return !!d.teamNumber; };
 const URLHasEvent = () => { const d = parseURL(); return !!d.eventCode; };
 
-// --- UI Components & Utilities ---
 function smoothUpdate(selector, newHtml, onHalfway) {
     return new Promise((resolve) => {
         const $el = $(selector);
@@ -142,8 +132,6 @@ const createSearchUI = (id, placeholder) => `
     <input type="text" id="${id}" class="search-input" placeholder="${placeholder}">
   </div>`;
 
-// --- Widget Registry ---
-// This centralizes all widget definitions for easy addition/maintenance
 const WIDGET_REGISTRY = {
     'team-info': {
         title: 'Team Info',
@@ -190,25 +178,20 @@ const WIDGET_REGISTRY = {
         render: (state) => `<div id="next-match-single">Loading next match...</div>`
     }
 };
-// Add any new widgets to this object ^^^
 
-// --- Layout Helpers ---
 let DEFAULT_LAYOUT_CONFIG = []; // Will be loaded from JSON
 
 function convertLayoutPercentToPixels(layoutConfig) {
     const W = Math.max($(window).width(), 1024);
-    // Account for header
+    
     const headerHeight = $('#main-header').outerHeight(true) || 60;
     const gap = 20;
 
-    // Viewport height (minus header and some padding) used as the "100%" basis
-    // Reduced height as per user request to prevent snapping out of bounds
     const H = Math.max($(window).height() - headerHeight - gap * 4, 600);
     
     const availW = W - gap;
 
     return layoutConfig.map(item => {
-        // Percentage (0-100)
         const xPct = (item.x || 0) / 100;
         const yPct = (item.y || 0) / 100;
         const wPct = (item.w || 100) / 100;
@@ -289,8 +272,6 @@ const api = {
         return response.json();
     },
     fetchStatbotics: async (endpoint) => {
-        // Statbotics v3 supports CORS on GET requests
-        // Note: setting mode: 'no-cors' will prevent you from reading the JSON response.
         const response = await fetch(API_CONFIG.STATBOTICS + endpoint, {
             method: 'GET',
             mode: 'cors'
@@ -300,7 +281,7 @@ const api = {
     }
 };
 
-// --- Core Data & UI Logic ---
+// Core Data & UI Logic
 let dataRefreshInterval = null;
 
 async function updateEventInfo(eventCode, teamNumber, silent = false) {
@@ -315,7 +296,6 @@ async function updateEventInfo(eventCode, teamNumber, silent = false) {
         if (!silent) await smoothUpdate('#team-loading-status', 'Loading TBA Data');
 
         const teamMatchData = await api.fetchTBA(`team/frc${teamNumber}/event/${eventCode}/matches`);
-        // Note: Preserving original logic where event is temporarily matches
         state.tba.event = teamMatchData;
         state.tba.record = {
             wins: teamMatchData.filter(m => m.winning_alliance && m.alliances[m.winning_alliance].team_keys.includes(`frc${teamNumber}`)).length,
@@ -336,9 +316,8 @@ async function updateEventInfo(eventCode, teamNumber, silent = false) {
 
         if (!silent) {
             await smoothUpdate('#team-loading-status', 'Loading dashboard');
-            displayEventInfo(true); // Animate first load
+            displayEventInfo(true); // animated update
             
-            // Start usage interval
             dataRefreshInterval = setInterval(() => {
                 updateEventInfo(eventCode, teamNumber, true);
             }, 30 * 1000);
@@ -373,7 +352,6 @@ function updateDashboardContent() {
         
         if (widgetDef && typeof widgetDef.render === 'function') {
              const newContent = widgetDef.render(state);
-             // Efficiently update only the content area, preserving the header/controls
              $el.find('.widget-content').html(newContent);
         }
     });
@@ -390,25 +368,20 @@ function displayEventInfo(animate = true, forceRebuild = false) {
         });
     } else {
         // Silent update loop
-        // If the dashboard doesn't exist yet (e.g. rapid navigation) or forced, build it
         if (forceRebuild || $('#dashboard').length === 0) {
             const dashboardHtml = generateDashboardHTML();
             $('#content').html(dashboardHtml).removeClass('vertically-centered');
             $('#edit-layout-btn').show().removeClass('hidden');
             initInteractions();
         } else {
-            // Smart update: only update inner HTML of existing widgets
             updateDashboardContent();
-            // Note: We do NOT re-init interactions here because DOM elements are preserved
         }
     }
 }
 
-function createWidget(widget, isEditing = false) {
+function createWidget(widget) {
     const { id, title, content, pos } = widget;
     
-    // Validate position properties to prevent "undefined" errors
-    // Now supporting absolute pixel/relative values as well
     const x = pos?.x ?? 0;
     const y = pos?.y ?? 0;
     const w = pos?.w ?? 300;
@@ -432,8 +405,7 @@ function createWidget(widget, isEditing = false) {
 }
 
 function generateDefaultLayout() {
-    // If config hasn't loaded yet, try to load it synchronously or warn?
-    // Since this is usually called after init, we assume DEFAULT_LAYOUT_CONFIG is populated.
+    // load layout config
     if (!DEFAULT_LAYOUT_CONFIG || DEFAULT_LAYOUT_CONFIG.length === 0) {
         console.warn("Default layout config not loaded yet, returning empty.");
         return [];
@@ -445,14 +417,12 @@ function generateDefaultLayout() {
 function getValidLayout() {
     const layout = storage.getLayout();
     
-    // Check if layout is a non-empty array
     if (!Array.isArray(layout)) {
         const defaults = generateDefaultLayout();
         storage.setLayout(defaults);
         return defaults;
     }
 
-    // If editing and layout is empty, we allow it (don't force defaults)
     const isEditing = $('#edit-layout-btn').hasClass('editing');
     if (layout.length === 0 && !isEditing) {
         const defaults = generateDefaultLayout();
@@ -462,7 +432,6 @@ function getValidLayout() {
         return [];
     }
 
-    // Strict validation: check if every widget has a valid position
     const isValid = layout.every(w => 
         w && 
         w.pos && 
@@ -485,7 +454,6 @@ function getValidLayout() {
 function generateDashboardHTML() {
     const isEditing = $('#edit-layout-btn').hasClass('editing');
     
-    // Ensure the edit layout button is visible when the dashboard is generated
     $('#edit-layout-btn').show().removeClass('hidden');
     if (isEditing) {
         $('#edit-layout-btn').text('Finish Editing').addClass('editing');
@@ -497,23 +465,18 @@ function generateDashboardHTML() {
     
     // Create widgets HTML
     const widgetsHtml = savedLayout.map(w => {
-        // Robustly determine type by checking registry for matching prefix
-        // This handles cases like 'team-info' where split('-')[0] would mistakenly return 'team'
         let baseId = w.id;
         const knownType = Object.keys(WIDGET_REGISTRY).find(key => w.id === key || w.id.startsWith(key + '-'));
         if (knownType) baseId = knownType;
 
         const widgetDef = WIDGET_REGISTRY[baseId];
         
-        // Dynamically find content from registry or fallback
         w.content = widgetDef ? (typeof widgetDef.render === 'function' ? widgetDef.render(state) : widgetDef.render) : "Unknown Widget";
         return createWidget(w);
     }).join('');
 
-    // Dynamically generate menu items from registry
     const menuItems = Object.keys(WIDGET_REGISTRY).map(key => {
         const def = WIDGET_REGISTRY[key];
-        // Use delegated event listener pattern instead of onclick attribute to keep DOM clean
         return `<button class="add-widget-btn" data-type="${key}">${def.title}</button>`;
     }).join('');
 
@@ -547,32 +510,21 @@ function removeWidget(id) {
     let layout = getValidLayout();
     layout = layout.filter(w => w.id !== id);
     storage.setLayout(layout);
-    // Force rebuild to remove widget from DOM instantly without animation
     displayEventInfo(false, true);
-}
-
-function resizeWidget(id, dw, dh) {
-    // This function is now deprecated in favor of cursor interactions
 }
 
 function addWidget(type) {
     let layout = getValidLayout();
-    
-    // Position the new widget slightly lower/right than the last added one to cascade
-    // Or center it. Let's Center it for visibility.
     const scrollTop = $(window).scrollTop() || 0;
     const dashboardWidth = $('#dashboard').width() || 1000;
     const centerX = (dashboardWidth - 300) / 2; 
     const centerY = (scrollTop > 100 ? scrollTop : 100) + 50; 
 
-    // Retrieve default size from registry if available
     const def = WIDGET_REGISTRY[type];
     const defaultW = def && def.defaultSize ? def.defaultSize.w : 300;
     const defaultH = def && def.defaultSize ? def.defaultSize.h : 200;
     const widgetTitle = def ? def.title : type.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
 
-
-    // Use a unique timestamp key but keep the type prefix for content mapping
     const newWidget = {
         id: type + '-' + Date.now().toString(36), 
         title: widgetTitle,
@@ -581,24 +533,14 @@ function addWidget(type) {
     layout.push(newWidget);
     storage.setLayout(layout);
     
-    // Refresh to show new widget, effectively hides the menu since HTML is regenerated
-    // Force rebuild to add widget to DOM instantly without animation
-    displayEventInfo(false, true);
+    displayEventInfo(false, true); // refresh to show new widget
     
-    // Ensure the menu stays hidden after adding (it will be by default from generateDashboardHTML)
     $('#add-widget-menu').addClass('hidden');
-}
-
-function initSortable() {
-    // Deprecated for absolute positioning
 }
 
 function initInteractions() {
     const isEditing = $('#edit-layout-btn').hasClass('editing');
     
-    // Safely cleanup existing interactions
-    // Note: interact.isSet is not available in v1.10+, causing potential errors if accessed.
-    // We just call unset() which handles cleanup idempotently.
     try {
         interact('.widget').unset();
     } catch (e) {
@@ -649,7 +591,6 @@ function initInteractions() {
         .resizable({
             edges: { left: false, right: true, bottom: true, top: false },
             modifiers: [
-                // Use snapSize for resizing if available, otherwise fallback to regular snap or none
                 interact.modifiers.snapSize ? interact.modifiers.snapSize({
                     targets: [
                         interact.createSnapGrid({ x: gridSize, y: gridSize })
@@ -659,7 +600,7 @@ function initInteractions() {
                     min: { width: 200, height: 150 },
                     max: { width: 1200, height: 800 }
                 })
-            ].filter(Boolean), // Filter out nulls if snapSize wasn't found
+            ].filter(Boolean),
             listeners: {
                 start(event) {
                     $('.widget').css('z-index', 1);
@@ -670,11 +611,9 @@ function initInteractions() {
                     let x = (parseFloat(target.getAttribute('data-x')) || 0);
                     let y = (parseFloat(target.getAttribute('data-y')) || 0);
 
-                    // Update the element's style
                     target.style.width = event.rect.width + 'px';
                     target.style.height = event.rect.height + 'px';
 
-                    // Translate when resizing from top or left edges
                     x += event.deltaRect.left;
                     y += event.deltaRect.top;
 
@@ -724,7 +663,6 @@ function saveCurrentLayout() {
     storage.setLayout(widgets);
 }
 
-// --- Page Renderers ---
 async function renderEventSelection() {
     try {
         const data = await api.fetchNexus('events');
@@ -753,7 +691,6 @@ async function renderEventSelection() {
 async function renderTeamSelection(eventCode) {
     try {
         const data = await api.fetchTBA(`event/${eventCode}/teams`);
-        // Collect and sort teams from TBA data (array of team objects)
         const teams = data.sort((a, b) => a.team_number - b.team_number);
 
         const ui = `<h1>Select a Team</h1>${createSearchUI('team-search', 'Search teams by number or name...')}<div class="grid-list" id="team-list"></div>`;
@@ -789,7 +726,6 @@ function checkEventExists(eventCode) {
         return Object.keys(data).includes(eventCode);
     }).catch(err => {
         console.error('API Error:', err);
-        // If it's an auth error (401/403), we want to surface that
         if (err.status === 401 || err.status === 403) {
             throw err;
         }
@@ -802,7 +738,6 @@ function checkTeamAtEvent(eventCode, teamNumber) {
         return keys.includes(`frc${teamNumber}`);
     }).catch(err => {
         console.error('TBA API Error (checkTeamAtEvent):', err);
-        // If it's an auth error (401/403), we want to surface that
         if (err.status === 401 || err.status === 403) {
             throw err;
         }
@@ -812,21 +747,17 @@ function checkTeamAtEvent(eventCode, teamNumber) {
 
 // --- Main Init ---
 $(async () => {
-    // Load Default Layout Config First
     try {
-        // Construct correct path for JSON based on app root
-        const dashboardUrl = getBaseURL(); // e.g. "/Repo/dashboard/" or "/dashboard/"
-        // Use more robust replacement to handle repos with 'dashboard' in the name
+        const dashboardUrl = getBaseURL();
         let rootUrl = dashboardUrl;
         if (rootUrl.endsWith('dashboard/')) {
-            rootUrl = rootUrl.slice(0, -10); // Remove last 10 chars ("dashboard/")
+            rootUrl = rootUrl.slice(0, -10); // remove 'dashboard/' to get root
         }
         const jsonPath = rootUrl + 'defaultLayout.json';
 
         DEFAULT_LAYOUT_CONFIG = await $.getJSON(jsonPath);
     } catch (e) {
         console.error("Failed to load defaultLayout.json", e);
-        // Fallback hardcoded if file fails? Not requested but good practice.
     }
 
     // Settings Logic
@@ -848,7 +779,6 @@ $(async () => {
         window.location.reload();
     });
 
-    // Handle "Import Layout" button (Delegated)
     $(document).off('click', '#import-layout-btn').on('click', '#import-layout-btn', async function() {
         // Read JSON from clipboard if possible, or prompt
         let jsonStr = '';
@@ -871,10 +801,6 @@ $(async () => {
                 return;
             }
             
-            // Validate and detect format
-            // If the layout has 'pos' {x,y,w,h} it is likely the old PIXEL format
-            // If the layout has direct {x,y,w,h} it is likely the new PERCENTAGE format
-            
             let finalLayout = [];
             
             // Check for new percentage format first (flat x, y, w, h properties)
@@ -882,19 +808,11 @@ $(async () => {
                 (typeof w.x === 'number' && typeof w.w === 'number') || 
                 (w.pos === undefined) // Ensure it's not the old format which nests inside 'pos'
             );
-            
-            // Check for old pixel format (nested inside 'pos' object)
-            const isPixelFormat = rawLayout.every(w => w.pos && typeof w.pos.x === 'number');
 
             if (isPercentFormat) {
                 // Determine if values are percentages (0-100) or possibly pixels
                 // Our internal standard says percentage is stored as 0-100
                 finalLayout = convertLayoutPercentToPixels(rawLayout);
-            } else if (isPixelFormat) {
-                // If the user pasted old pixel data, we have to use it as is or try to convert.
-                // Since we don't know original screen size, we use as pixels.
-                console.warn("Imported layout uses raw pixels. Scaling may not be optimal.");
-                finalLayout = rawLayout;
             } else {
                  alert("Invalid layout format: Could not detect pixel (pos object) or percentage format.");
                  return;
@@ -934,21 +852,16 @@ $(async () => {
         }
     });
 
-    // Make sure we always delegate this check
-    // Fix: We must unbind first to avoid duplicate listeners if init re-runs, and use delegation
-    // because #edit-layout-btn IS recreated by generateDashboardHTML
     $(document).off('click', '#edit-layout-btn').on('click', '#edit-layout-btn', function() {
         const $this = $(this);
         const isEditing = $this.hasClass('editing');
         
         if (isEditing) {
-            // TURNING OFF EDITING
             $this.removeClass('editing').text('Edit Layout');
             $('#dashboard').removeClass('editing');
             $('#add-widget-menu').addClass('hidden');
-            $('#dashboard-controls').hide(); // Hide the "Add Widget" container
+            $('#dashboard-controls').hide();
             
-            // Explicitly unset interactions to prevent moving
             try {
                 interact('.widget').unset();
             } catch (e) {
@@ -956,18 +869,15 @@ $(async () => {
             }
 
             saveCurrentLayout();
-            // Re-render to reflect changes or load defaults if empty
             displayEventInfo(false);
         } else {
-            // TURNING ON EDITING
             $this.addClass('editing').text('Finish Editing');
             $('#dashboard').addClass('editing');
-            $('#dashboard-controls').show().css('display', 'flex'); // Show the "Add Widget" container
+            $('#dashboard-controls').show().css('display', 'flex');
             initInteractions();
         }
     });
 
-    // Add Widget Menu Button Logic (Delegate for dynamically created elements)
     $(document).off('click', '#toggle-add-widget').on('click', '#toggle-add-widget', function() {
          $('#add-widget-menu').toggleClass('hidden');
     });
@@ -976,7 +886,6 @@ $(async () => {
          $('#add-widget-menu').addClass('hidden');
     });
     
-    // Also handle menu close inside the menu
     $(document).off('click', '#add-widget-menu .add-widget-btn').on('click', '#add-widget-menu .add-widget-btn', function() {
         const type = $(this).data('type');
         if (type) {
@@ -984,7 +893,6 @@ $(async () => {
         }
     });
 
-    // Handle widget removal (Delegate for dynamically created widgets)
     $(document).off('click', '.widget-remove-btn').on('click', '.widget-remove-btn', function() {
         const id = $(this).data('id');
         if (id) {
@@ -992,7 +900,6 @@ $(async () => {
         }
     });
 
-    // Routing
     const { eventCode, teamNumber } = parseURL();
 
     if (teamNumber) {
