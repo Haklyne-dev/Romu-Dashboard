@@ -17,19 +17,22 @@ let state = {
         event: null,
         matches: [],
         record: null,
+        team_media: {}
     },
     nexus: {
         event: null,
         matches: [],
         announcements: [],
         partRequests: [],
-        nowQueuing: null
+        nowQueuing: null,
+        pits: {}
     },
     statbotics: {
         event: null,
         matches: [],
         epaHistory: []
     },
+    lastStatboticsUpdate: null,
     lastUpdate: null
 };
 
@@ -137,59 +140,190 @@ const WIDGET_REGISTRY = {
         title: 'Team Info',
         defaultSize: { w: 300, h: 180 },
         render: (state) => {
-            const recordText = state.tba.record 
-                ? `${state.tba.record.wins} - ${state.tba.record.losses} - ${state.tba.record.ties}` 
+            const recordText = state.tba.record
+                ? `${state.tba.record.wins} - ${state.tba.record.losses} - ${state.tba.record.ties}`
                 : "N/A";
             return `
-                <h1>Team ${state.teamNumber}</h1>
-                <p>${state.tba.event?.name || ""}</p>
-                <p>Record: <strong>${recordText}</strong></p>
+                <div class="team-info-container">
+                    <h1>Team ${state.teamNumber}</h1>
+                    <p>${state.tba.event?.name || ""}</p>
+                    <p>Record: <strong>${recordText}</strong></p>
+                </div>
             `;
         }
     },
-    'next-matches': {
-        title: 'Next Matches',
+    'upcoming-matches': {
+        title: 'Upcoming Matches',
         defaultSize: { w: 300, h: 400 },
-        render: (state) => `<div id="match-list">Loading matches...</div>`
+        render: (state) => {
+            if (!state.tba.matches) {
+                return `<div id="upcoming-matches">No match data available.</div>`;
+            }
+            var unplayedMatches = state.tba.matches.filter(m => m.winning_alliance === '');
+            if (unplayedMatches.length === 0) {
+                return `<div id="upcoming-matches">No upcoming matches.</div>`;
+            }
+            let matchname = m => {
+                if (m.comp_level === 'qm') return `Qualification ${m.match_number}`;
+                if (m.comp_level === 'sf') return `Eighth-Final ${m.match_number}`;
+                if (m.comp_level === 'f') return `Final ${m.match_number}`;
+            };
+            return `
+                <div class="match-list">
+                    ${unplayedMatches.map(m => {
+                const redTeams = m.alliances.red.team_keys.map(t => `<span class="team-number">${t.replace('frc', '')}</span>`).join('');
+                const blueTeams = m.alliances.blue.team_keys.map(t => `<span class="team-number">${t.replace('frc', '')}</span>`).join('');
+                return `
+                            <div class="match-item">
+                                <span class="match-name">${matchname(m)}</span>
+                                <div class="alliances">
+                                    <div class="alliance red">
+                                        ${redTeams}
+                                    </div>
+                                    <div class="alliance blue">
+                                        ${blueTeams}
+                                    </div>
+                                </div>
+                            </div>`;
+            }).join('')}
+                </div>
+            `;
+        }
     },
     'announcements': {
         title: 'Event Announcements',
         defaultSize: { w: 600, h: 250 },
-        render: (state) => `<div id="announcement-list">No announcements.</div>`
+        render: (state) => {
+            if (!state.nexus.announcements || state.nexus.announcements.length === 0) {
+                return `<div id="announcement-list">No announcements.</div>`;
+            }
+            // Sort by postedTime descending
+            const sorted = [...state.nexus.announcements].sort((a, b) => b.postedTime - a.postedTime);
+            return `
+                <div id="announcement-list">
+                    ${sorted.map(a => {
+                const time = new Date(a.postedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                return `
+                        <div class="announcement-item">
+                            <span class="announcement-time text-secondary">[${time}]</span>
+                            <span class="announcement-text">${a.announcement}</span>
+                        </div>`;
+            }).join('')}
+                </div>
+            `;
+        }
     },
     'epa-stats': {
         title: 'EPA Stats',
         defaultSize: { w: 300, h: 330 },
         render: (state) => `<div id="epa-stats">Statbotics data loading...</div>`
     },
-    'pit-status': {
-        title: 'Pit Status',
-        defaultSize: { w: 280, h: 330 },
-        render: (state) => `<div id="pit-status">Pit info loading...</div>`
-    },
     'part-requests': {
         title: 'Part Requests',
         defaultSize: { w: 400, h: 300 },
-        render: (state) => `<div id="part-requests-list">No active requests.</div>`
+        render: (state) => {
+            if (!state.nexus.partRequests || state.nexus.partRequests.length === 0) {
+                return `<div id="part-requests-list">No active requests.</div>`;
+            }
+            // Sort by postedTime descending
+            const sorted = [...state.nexus.partRequests].sort((a, b) => b.postedTime - a.postedTime);
+            return `
+                <div id="part-requests-list">
+                    ${sorted.map(r => {
+                const time = new Date(r.postedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                return `
+                        <div class="part-request-item">
+                            <span class="part-request-time text-secondary">[${time}]</span>
+                            <strong>Team ${r.requestedByTeam}:</strong>
+                            <p>${r.parts}</p>
+                        </div>`;
+            }).join('')}
+                </div>
+            `;
+        }
     },
     'next-match-single': {
         title: 'Next Match',
         defaultSize: { w: 300, h: 200 },
-        render: (state) => `<div id="next-match-single">Loading next match...</div>`
+        render: (state) => {
+            if (!state.tba.matches || state.tba.matches.length === 0) {
+                return `<div id="next-match-single">Loading matches...</div>`;
+            }
+
+            // 1. Filter for unplayed matches and sort by time
+            const unplayed = state.tba.matches
+                .filter(m => m.winning_alliance === '' || m.winning_alliance === null)
+                .sort((a, b) => (a.time || 0) - (b.time || 0));
+
+            const nextMatch = unplayed[0];
+
+            if (!nextMatch) {
+                return `<div id="next-match-single">No upcoming matches.</div>`;
+            }
+
+            // 2. Format names
+            const getMatchName = (m) => {
+                const levels = { qm: 'Qual', sf: 'Semi', f: 'Final' };
+                return `${levels[m.comp_level] || m.comp_level.toUpperCase()} ${m.match_number}`;
+            };
+
+            const getCurrentAllianceColor = () => {
+                if (nextMatch.alliances.red.team_keys.includes(`frc${state.teamNumber}`)) return 'red';
+                if (nextMatch.alliances.blue.team_keys.includes(`frc${state.teamNumber}`)) return 'blue';
+                return 'neutral';
+            };
+
+            const renderAlliance = (color) => nextMatch.alliances[color].team_keys.map(t => {
+                const teamNum = t.replace('frc', '');
+                const isUserTeam = teamNum === state.teamNumber;
+                const pitLocation = (state.nexus.pits && state.nexus.pits[teamNum]) || 'Pending';
+                
+                // Get robot image from state
+                const mediaUrl = state.tba.team_media[t];
+                const robotImg = (mediaUrl && mediaUrl !== 'no-image') 
+                    ? `<img src="${mediaUrl}" class="robot-img" alt="Team ${teamNum} Robot">`
+                    : `<div class="robot-placeholder">No Image</div>`;
+
+                return `
+                    <div class="match-team ${isUserTeam ? 'highlight' : ''}">
+                        ${robotImg}
+                        <div class="team-info-box">
+                            <span class="team-num">Team ${teamNum}</span>
+                            <span class="pit-loc">Pit: ${pitLocation}</span>
+                        </div>
+                    </div>`;
+            }).join('');
+
+            return `
+                <div class="next-match-card horizontal ${getCurrentAllianceColor()}-alliance">
+                    <div class="next-match-header">
+                        <span class="next-match-title">${getMatchName(nextMatch)}</span>
+                        ${nextMatch.predicted_time ? `<span class="next-match-time">${new Date(nextMatch.predicted_time * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>` : ''}
+                    </div>
+                    <div class="next-match-teams-row">
+                        <div class="alliance-group red">
+                            ${renderAlliance('red')}
+                        </div>
+                        <div class="alliance-group blue">
+                            ${renderAlliance('blue')}
+                        </div>
+                    </div>
+                </div>`;
+        }
     }
 };
 
 let DEFAULT_LAYOUT_CONFIG = []; // Will be loaded from JSON
 
 function convertLayoutPercentToPixels(layoutConfig) {
-    const W = Math.max($(window).width(), 1024);
-    
+    const W = $(window).width();
+    const isSmallScreen = W < 1024;
     const headerHeight = $('#main-header').outerHeight(true) || 60;
-    const gap = 20;
+    const gap = isSmallScreen ? 10 : 20;
+    const gridSize = isSmallScreen ? 10 : 20;
 
-    const H = Math.max($(window).height() - headerHeight - gap * 4, 600);
-    
-    const availW = W - gap;
+    const H = Math.max($(window).height() - headerHeight - gap * 2, 600);
+    const availW = W - gap * 2;
 
     return layoutConfig.map(item => {
         const xPct = (item.x || 0) / 100;
@@ -198,37 +332,52 @@ function convertLayoutPercentToPixels(layoutConfig) {
         const hPct = (item.h || 100) / 100;
 
         // Calculate Pixel Values
-        const pxX = gap + (xPct * availW);
-        const pxY = gap + (yPct * H);
-        const pxW = (wPct * availW) - gap;
-        const pxH = (hPct * H) - gap;
+        let pxX = gap + (xPct * availW);
+        let pxY = gap + (yPct * H);
+        let pxW = (wPct * availW) - (isSmallScreen ? 5 : 10); // Slightly more aggressive width control
+        let pxH = (hPct * H) - (isSmallScreen ? 5 : 10);
+
+        // Snap to grid for consistent initialization
+        pxX = Math.round(pxX / gridSize) * gridSize;
+        pxY = Math.round(pxY / gridSize) * gridSize;
+        pxW = Math.round(pxW / gridSize) * gridSize;
+        pxH = Math.round(pxH / gridSize) * gridSize;
 
         const def = WIDGET_REGISTRY[item.id];
         return {
-             id: item.id,
-             title: def ? def.title : item.id,
-             pos: {
-                 x: Math.round(pxX),
-                 y: Math.round(pxY),
-                 w: Math.round(Math.max(100, pxW)),
-                 h: Math.round(Math.max(50, pxH))
-             }
+            id: item.id,
+            title: def ? def.title : item.id,
+            pos: {
+                x: Math.round(pxX),
+                y: Math.round(pxY),
+                w: Math.round(Math.max(isSmallScreen ? 150 : 200, pxW)),
+                h: Math.round(Math.max(isSmallScreen ? 100 : 150, pxH))
+            }
         };
     });
 }
 
 function convertLayoutPixelsToPercent(currentLayout) {
-    const W = Math.max($(window).width(), 1024);
+    const W = $(window).width();
+    const isSmallScreen = W < 1024;
     const headerHeight = $('#main-header').outerHeight(true) || 60;
-    const gap = 20;
-    const H = Math.max($(window).height() - headerHeight - gap * 4, 600);
-    const availW = W - gap;
+    const gap = isSmallScreen ? 10 : 20;
+    const gridSize = isSmallScreen ? 10 : 20;
+
+    const H = Math.max($(window).height() - headerHeight - gap * 2, 600);
+    const availW = W - gap * 2;
 
     return currentLayout.map(w => {
-        const xPct = ((w.pos.x - gap) / availW) * 100;
-        const yPct = ((w.pos.y - gap) / H) * 100;
-        const wPct = ((w.pos.w + gap) / availW) * 100;
-        const hPct = ((w.pos.h + gap) / H) * 100;
+        // Snap current pixel values to grid before calculating percentages
+        const snappedX = Math.round(w.pos.x / gridSize) * gridSize;
+        const snappedY = Math.round(w.pos.y / gridSize) * gridSize;
+        const snappedW = Math.round(w.pos.w / gridSize) * gridSize;
+        const snappedH = Math.round(w.pos.h / gridSize) * gridSize;
+
+        const xPct = ((snappedX - gap) / availW) * 100;
+        const yPct = ((snappedY - gap) / H) * 100;
+        const wPct = ((snappedW + (isSmallScreen ? 5 : 10)) / availW) * 100;
+        const hPct = ((snappedH + (isSmallScreen ? 5 : 10)) / H) * 100;
 
         return {
             id: w.id,
@@ -272,12 +421,23 @@ const api = {
         return response.json();
     },
     fetchStatbotics: async (endpoint) => {
-        const response = await fetch(API_CONFIG.STATBOTICS + endpoint, {
-            method: 'GET',
-            mode: 'cors'
-        });
-        if (!response.ok) throw new Error(`Statbotics API Error: ${response.status}`);
-        return response.json();
+        const fetchWithRetry = async (url, retries = 0) => {
+            const response = await fetch(url, {
+                method: 'GET',
+                mode: 'cors'
+            });
+
+            if (response.status === 503) {
+                console.warn('Statbotics API 503 Service Unavailable. Retrying in 10s...');
+                await new Promise(resolve => setTimeout(resolve, 10000));
+                return fetchWithRetry(url, retries + 1);
+            }
+
+            if (!response.ok) throw new Error(`Statbotics API Error: ${response.status}`);
+            return response.json();
+        };
+
+        return fetchWithRetry(API_CONFIG.STATBOTICS + endpoint);
     }
 };
 
@@ -293,38 +453,91 @@ async function updateEventInfo(eventCode, teamNumber, silent = false) {
         const eventData = await api.fetchNexus(`event/${eventCode}`);
         state.nexus.event = eventData;
 
+        console.log('Nexus Event Data:', eventData);
+
+        //parse nexus event data into subsections for easier widget rendering
+        state.nexus.announcements = eventData.announcements || [];
+        state.nexus.partRequests = eventData.partRequests || [];
+
+        const pitData = await api.fetchNexus(`event/${eventCode}/pits`);
+        state.nexus.pits = pitData;
+
         if (!silent) await smoothUpdate('#team-loading-status', 'Loading TBA Data');
 
         const teamMatchData = await api.fetchTBA(`team/frc${teamNumber}/event/${eventCode}/matches`);
-        state.tba.event = teamMatchData;
+        state.tba.matches = teamMatchData;
         state.tba.record = {
-            wins: teamMatchData.filter(m => m.winning_alliance && m.alliances[m.winning_alliance].team_keys.includes(`frc${teamNumber}`)).length,
-            losses: teamMatchData.filter(m => m.winning_alliance && !m.alliances[m.winning_alliance].team_keys.includes(`frc${teamNumber}`) && m.winning_alliance !== '').length,
-            ties: teamMatchData.filter(m => m.comp_level === 'qm' && m.winning_alliance === '').length
+            wins: teamMatchData.filter(m => (m.alliances.red.team_keys.includes(`frc${teamNumber}`) && m.alliances.red.score > m.alliances.blue.score) || (m.alliances.blue.team_keys.includes(`frc${teamNumber}`) && m.alliances.blue.score > m.alliances.red.score)).length,
+            losses: teamMatchData.filter(m => (m.alliances.red.team_keys.includes(`frc${teamNumber}`) && m.alliances.red.score < m.alliances.blue.score) || (m.alliances.blue.team_keys.includes(`frc${teamNumber}`) && m.alliances.blue.score < m.alliances.red.score)).length,
+            ties: teamMatchData.filter(m => m.alliances.red.score === m.alliances.blue.score && m.winning_alliance !== '').length
         };
 
         const eventDataTBA = await api.fetchTBA(`event/${eventCode}`);
         state.tba.event = eventDataTBA;
 
-        if (!silent) await smoothUpdate('#team-loading-status', 'Loading Statbotics Data');
+        // Fetch team media for next match teams if needed
+        const unplayed = state.tba.matches
+            .filter(m => m.winning_alliance === '' || m.winning_alliance === null)
+            .sort((a, b) => (a.time || 0) - (b.time || 0));
+        const nextMatch = unplayed[0];
 
-        const statboticsData = await api.fetchStatbotics(`event/${eventCode}`);
-        state.statbotics.event = statboticsData;
-        state.lastUpdate = new Date();
+        if (nextMatch) {
+            const allMatchTeams = [...nextMatch.alliances.red.team_keys, ...nextMatch.alliances.blue.team_keys];
+            const currentYear = new Date().getFullYear();
+            
+            await Promise.all(allMatchTeams.map(async (tKey) => {
+                if (!state.tba.team_media[tKey]) {
+                    try {
+                        const media = await api.fetchTBA(`team/${tKey}/media/${currentYear}`);
+                        
+                        // Look for the preferred image first, otherwise find any valid image object
+                        const image = media.find(m => m.preferred && (m.direct_url || m.type === 'imgur')) || 
+                                      media.find(m => m.direct_url || m.type === 'imgur');
+                        
+                        let url = 'no-image';
+                        if (image) {if (image.type === 'imgur') {
+                                url = `https://i.imgur.com/${image.foreign_key}.png`;
+                            }
+                        }
+                        state.tba.team_media[tKey] = url;
+                    } catch (e) {
+                        console.warn(`Failed to fetch media for ${tKey}`, e);
+                        state.tba.team_media[tKey] = 'no-image';
+                    }
+                }
+            }));
+        }
+
+        const now = new Date();
+        const twoMinutes = 2 * 60 * 1000;
+
+        if (!state.lastStatboticsUpdate || (now - state.lastStatboticsUpdate >= twoMinutes)) {
+            if (!silent) await smoothUpdate('#team-loading-status', 'Loading Statbotics Data');
+            try {
+                const statboticsData = await api.fetchStatbotics(`event/${eventCode}`);
+                state.statbotics.event = statboticsData;
+                state.lastStatboticsUpdate = now;
+            } catch (sbErr) {
+                console.error('Statbotics fetch failed:', sbErr);
+                // Continue without failing the entire update if Statbotics is down
+            }
+        }
+
+        state.lastUpdate = now;
         state.eventCode = eventCode;
         state.teamNumber = teamNumber;
 
         if (!silent) {
             await smoothUpdate('#team-loading-status', 'Loading dashboard');
             displayEventInfo(true); // animated update
-            
+
             dataRefreshInterval = setInterval(() => {
                 updateEventInfo(eventCode, teamNumber, true);
             }, 30 * 1000);
         } else {
             displayEventInfo(false); // Silent update
         }
-        
+
     } catch (err) {
         console.error('Error updating event info:', err);
         if (!silent) {
@@ -340,19 +553,19 @@ async function updateEventInfo(eventCode, teamNumber, silent = false) {
 }
 
 function updateDashboardContent() {
-    $('.widget').each(function() {
+    $('.widget').each(function () {
         const $el = $(this);
         const id = $el.data('id');
-        
+
         let baseId = id;
         const knownType = Object.keys(WIDGET_REGISTRY).find(key => id === key || id.startsWith(key + '-'));
         if (knownType) baseId = knownType;
 
         const widgetDef = WIDGET_REGISTRY[baseId];
-        
+
         if (widgetDef && typeof widgetDef.render === 'function') {
-             const newContent = widgetDef.render(state);
-             $el.find('.widget-content').html(newContent);
+            const newContent = widgetDef.render(state);
+            $el.find('.widget-content').html(newContent);
         }
     });
 }
@@ -381,19 +594,20 @@ function displayEventInfo(animate = true, forceRebuild = false) {
 
 function createWidget(widget) {
     const { id, title, content, pos } = widget;
-    
+
     const x = pos?.x ?? 0;
     const y = pos?.y ?? 0;
     const w = pos?.w ?? 300;
     const h = pos?.h ?? 200;
 
+    const isEditing = $('#edit-layout-btn').hasClass('editing');
     const style = `left: ${x}px; top: ${y}px; width: ${w}px; height: ${h}px; position: absolute;`;
     return `
         <div class="widget" data-id="${id}" style="${style}">
             <div class="widget-header">
                 <span class="widget-title">${title}</span>
                 <div class="widget-controls">
-                    <button class="widget-remove-btn" data-id="${id}">✕</button>
+                    <button class="widget-remove-btn ${isEditing ? '' : 'hidden'}" data-id="${id}">✕</button>
                 </div>
             </div>
             <div class="widget-content">
@@ -416,7 +630,7 @@ function generateDefaultLayout() {
 
 function getValidLayout() {
     const layout = storage.getLayout();
-    
+
     if (!Array.isArray(layout)) {
         const defaults = generateDefaultLayout();
         storage.setLayout(defaults);
@@ -432,12 +646,12 @@ function getValidLayout() {
         return [];
     }
 
-    const isValid = layout.every(w => 
-        w && 
-        w.pos && 
-        typeof w.pos.x === 'number' && 
-        typeof w.pos.y === 'number' && 
-        typeof w.pos.w === 'number' && 
+    const isValid = layout.every(w =>
+        w &&
+        w.pos &&
+        typeof w.pos.x === 'number' &&
+        typeof w.pos.y === 'number' &&
+        typeof w.pos.w === 'number' &&
         typeof w.pos.h === 'number'
     );
 
@@ -453,16 +667,18 @@ function getValidLayout() {
 
 function generateDashboardHTML() {
     const isEditing = $('#edit-layout-btn').hasClass('editing');
-    
+
     $('#edit-layout-btn').show().removeClass('hidden');
     if (isEditing) {
         $('#edit-layout-btn').text('Finish Editing').addClass('editing');
+        $('.widget-remove-btn').removeClass('hidden');
     } else {
         $('#edit-layout-btn').text('Edit Layout').removeClass('editing');
+        $('.widget-remove-btn').addClass('hidden');
     }
 
     const savedLayout = getValidLayout();
-    
+
     // Create widgets HTML
     const widgetsHtml = savedLayout.map(w => {
         let baseId = w.id;
@@ -470,7 +686,7 @@ function generateDashboardHTML() {
         if (knownType) baseId = knownType;
 
         const widgetDef = WIDGET_REGISTRY[baseId];
-        
+
         w.content = widgetDef ? (typeof widgetDef.render === 'function' ? widgetDef.render(state) : widgetDef.render) : "Unknown Widget";
         return createWidget(w);
     }).join('');
@@ -517,8 +733,8 @@ function addWidget(type) {
     let layout = getValidLayout();
     const scrollTop = $(window).scrollTop() || 0;
     const dashboardWidth = $('#dashboard').width() || 1000;
-    const centerX = (dashboardWidth - 300) / 2; 
-    const centerY = (scrollTop > 100 ? scrollTop : 100) + 50; 
+    const centerX = (dashboardWidth - 300) / 2;
+    const centerY = (scrollTop > 100 ? scrollTop : 100) + 50;
 
     const def = WIDGET_REGISTRY[type];
     const defaultW = def && def.defaultSize ? def.defaultSize.w : 300;
@@ -526,21 +742,21 @@ function addWidget(type) {
     const widgetTitle = def ? def.title : type.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
 
     const newWidget = {
-        id: type + '-' + Date.now().toString(36), 
+        id: type + '-' + Date.now().toString(36),
         title: widgetTitle,
         pos: { x: Math.max(20, centerX), y: centerY, w: defaultW, h: defaultH }
     };
     layout.push(newWidget);
     storage.setLayout(layout);
-    
+
     displayEventInfo(false, true); // refresh to show new widget
-    
+
     $('#add-widget-menu').addClass('hidden');
 }
 
 function initInteractions() {
     const isEditing = $('#edit-layout-btn').hasClass('editing');
-    
+
     try {
         interact('.widget').unset();
     } catch (e) {
@@ -561,7 +777,7 @@ function initInteractions() {
                         interact.createSnapGrid({ x: gridSize, y: gridSize })
                     ],
                     range: Infinity,
-                    relativePoints: [ { x: 0, y: 0 } ]
+                    relativePoints: [{ x: 0, y: 0 }]
                 }),
                 interact.modifiers.restrictRect({
                     restriction: 'parent',
@@ -632,20 +848,20 @@ function saveCurrentLayout() {
     const widgets = [];
     const $dashboard = $('#dashboard');
     const dashOffset = $dashboard.offset();
-    
+
     // Ensure dashboard offset is valid
     if (!dashOffset) return;
 
-    $dashboard.find('.widget').each(function() {
+    $dashboard.find('.widget').each(function () {
         const $w = $(this);
         const id = $w.data('id');
         const title = $w.find('.widget-title').text();
-        
+
         // Get visual position
         const offset = $w.offset();
         const relativeX = offset.left - dashOffset.left;
         const relativeY = offset.top - dashOffset.top;
-        
+
         const w = $w.outerWidth();
         const h = $w.outerHeight();
 
@@ -763,7 +979,7 @@ $(async () => {
     // Settings Logic
     $('#settings-btn').on('click', () => $('#settings-menu').toggleClass('hidden'));
     $('#close-settings-btn').on('click', () => $('#settings-menu').addClass('hidden'));
-    
+
     // Fill initial values
     $('#nexus-key-input').val(storage.getNexusKey());
     $('#tba-key-input').val(storage.getTBAKey());
@@ -771,22 +987,22 @@ $(async () => {
     $('#save-settings-btn').on('click', () => {
         const nexusKey = $('#nexus-key-input').val();
         const tbaKey = $('#tba-key-input').val();
-        
+
         storage.set('nexusKey', nexusKey);
         storage.set('tbaKey', tbaKey);
-        
+
         $('#settings-menu').addClass('hidden');
         window.location.reload();
     });
 
-    $(document).off('click', '#import-layout-btn').on('click', '#import-layout-btn', async function() {
+    $(document).off('click', '#import-layout-btn').on('click', '#import-layout-btn', async function () {
         // Read JSON from clipboard if possible, or prompt
         let jsonStr = '';
         try {
             jsonStr = await navigator.clipboard.readText();
             // Basic check if it looks like JSON array
             if (!jsonStr || !jsonStr.trim().startsWith('[')) {
-                 throw new Error("Clipboard content doesn't look like a layout array");
+                throw new Error("Clipboard content doesn't look like a layout array");
             }
         } catch (e) {
             jsonStr = prompt("Paste your layout JSON here:");
@@ -800,12 +1016,12 @@ $(async () => {
                 alert("Invalid layout format: Root must be an array.");
                 return;
             }
-            
+
             let finalLayout = [];
-            
+
             // Check for new percentage format first (flat x, y, w, h properties)
-            const isPercentFormat = rawLayout.every(w => 
-                (typeof w.x === 'number' && typeof w.w === 'number') || 
+            const isPercentFormat = rawLayout.every(w =>
+                (typeof w.x === 'number' && typeof w.w === 'number') ||
                 (w.pos === undefined) // Ensure it's not the old format which nests inside 'pos'
             );
 
@@ -814,8 +1030,8 @@ $(async () => {
                 // Our internal standard says percentage is stored as 0-100
                 finalLayout = convertLayoutPercentToPixels(rawLayout);
             } else {
-                 alert("Invalid layout format: Could not detect pixel (pos object) or percentage format.");
-                 return;
+                alert("Invalid layout format: Could not detect pixel (pos object) or percentage format.");
+                return;
             }
 
             if (confirm("This will overwrite your current layout. Continue?")) {
@@ -829,20 +1045,20 @@ $(async () => {
     });
 
     // Handle "Export Layout" button (Delegated because it is dynamic)
-    $(document).off('click', '#export-layout-btn').on('click', '#export-layout-btn', async function() {
+    $(document).off('click', '#export-layout-btn').on('click', '#export-layout-btn', async function () {
         // Updated Export: Convert current PIXEL layout to PERCENTAGE based on current window size
         // This ensures exports work across different screen sizes
-        const layout = storage.getLayout(); 
+        const layout = storage.getLayout();
         if (!layout) {
             alert("No layout to export!");
             return;
         }
 
         const percentageLayout = convertLayoutPixelsToPercent(layout);
-        
+
         // Pretty print JSON
         const jsonStr = JSON.stringify(percentageLayout, null, 2);
-        
+
         try {
             await navigator.clipboard.writeText(jsonStr);
             alert("Layout JSON (scalable) copied to clipboard!");
@@ -852,16 +1068,17 @@ $(async () => {
         }
     });
 
-    $(document).off('click', '#edit-layout-btn').on('click', '#edit-layout-btn', function() {
+    $(document).off('click', '#edit-layout-btn').on('click', '#edit-layout-btn', function () {
         const $this = $(this);
         const isEditing = $this.hasClass('editing');
-        
+
         if (isEditing) {
             $this.removeClass('editing').text('Edit Layout');
             $('#dashboard').removeClass('editing');
             $('#add-widget-menu').addClass('hidden');
             $('#dashboard-controls').hide();
-            
+            $('.widget-remove-btn').addClass('hidden');
+
             try {
                 interact('.widget').unset();
             } catch (e) {
@@ -874,26 +1091,27 @@ $(async () => {
             $this.addClass('editing').text('Finish Editing');
             $('#dashboard').addClass('editing');
             $('#dashboard-controls').show().css('display', 'flex');
+            $('.widget-remove-btn').removeClass('hidden');
             initInteractions();
         }
     });
 
-    $(document).off('click', '#toggle-add-widget').on('click', '#toggle-add-widget', function() {
-         $('#add-widget-menu').toggleClass('hidden');
+    $(document).off('click', '#toggle-add-widget').on('click', '#toggle-add-widget', function () {
+        $('#add-widget-menu').toggleClass('hidden');
     });
 
-    $(document).off('click', '#close-add-widget').on('click', '#close-add-widget', function() {
-         $('#add-widget-menu').addClass('hidden');
+    $(document).off('click', '#close-add-widget').on('click', '#close-add-widget', function () {
+        $('#add-widget-menu').addClass('hidden');
     });
-    
-    $(document).off('click', '#add-widget-menu .add-widget-btn').on('click', '#add-widget-menu .add-widget-btn', function() {
+
+    $(document).off('click', '#add-widget-menu .add-widget-btn').on('click', '#add-widget-menu .add-widget-btn', function () {
         const type = $(this).data('type');
         if (type) {
             addWidget(type);
         }
     });
 
-    $(document).off('click', '.widget-remove-btn').on('click', '.widget-remove-btn', function() {
+    $(document).off('click', '.widget-remove-btn').on('click', '.widget-remove-btn', function () {
         const id = $(this).data('id');
         if (id) {
             removeWidget(id);
@@ -908,15 +1126,15 @@ $(async () => {
         try {
             // Check if event exists in Nexus first
             const eventExists = await checkEventExists(eventCode);
-            
+
             if (!eventExists) {
                 // Determine if it's likely an API key issue or just missing event
                 const hasNexusKey = !!storage.getNexusKey();
                 const errorTitle = hasNexusKey ? "Event Not Found" : "Configuration Error";
-                const errorMsg = hasNexusKey 
-                    ? `Event code '<strong>${eventCode}</strong>' was not found in the Nexus database.` 
+                const errorMsg = hasNexusKey
+                    ? `Event code '<strong>${eventCode}</strong>' was not found in the Nexus database.`
                     : "Missing Nexus API Key. Please configure it in settings.";
-                
+
                 await smoothUpdate('#content', `<div class="center-content error"><h1>${errorTitle}</h1><p>${errorMsg}</p></div>`, () => $('#content').addClass('vertically-centered'));
                 return;
             }
@@ -924,7 +1142,7 @@ $(async () => {
             await smoothUpdate('#team-loading-status', 'Verifying Team Registration');
 
             const teamExists = await checkTeamAtEvent(eventCode, teamNumber);
-            
+
             if (teamExists) {
                 await smoothUpdate('#team-loading-status', 'Loading Nexus Data');
                 updateEventInfo(eventCode, teamNumber);
